@@ -1,0 +1,1606 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IOTBSM — Agentic Trust Network</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=DM+Sans:wght@300;400;500;600&display=swap');
+
+  :root {
+    --bg: #080c14;
+    --surface: #0e1520;
+    --surface2: #131c2b;
+    --border: #1e2d42;
+    --accent: #00d4ff;
+    --accent2: #ff6b35;
+    --accent3: #7fff6b;
+    --warn: #ffcc00;
+    --danger: #ff3b5c;
+    --text: #c8d8e8;
+    --text-dim: #566b80;
+    --text-bright: #e8f4ff;
+    --mono: 'Space Mono', monospace;
+    --sans: 'DM Sans', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 13px;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Noise overlay */
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none; z-index: 0; opacity: 0.4;
+  }
+
+  header {
+    padding: 18px 24px 14px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 20px;
+    background: rgba(14,21,32,0.95);
+    position: sticky; top: 0; z-index: 100;
+    backdrop-filter: blur(12px);
+  }
+
+  header h1 {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--accent);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  header .subtitle {
+    font-size: 11px;
+    color: var(--text-dim);
+    font-family: var(--mono);
+  }
+
+  .header-controls {
+    margin-left: auto;
+    display: flex; gap: 8px; align-items: center;
+  }
+
+  .btn {
+    font-family: var(--mono);
+    font-size: 11px;
+    padding: 6px 14px;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    cursor: pointer;
+    background: var(--surface);
+    color: var(--text);
+    transition: all 0.15s;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+  .btn:hover { border-color: var(--accent); color: var(--accent); }
+  .btn.active { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+  .btn.danger { border-color: var(--danger); color: var(--danger); }
+  .btn.danger:hover { background: var(--danger); color: var(--bg); }
+  .btn.success { border-color: var(--accent3); color: var(--accent3); }
+  .btn.success:hover { background: var(--accent3); color: var(--bg); }
+
+  select {
+    font-family: var(--mono);
+    font-size: 11px;
+    padding: 5px 10px;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    background: var(--surface);
+    color: var(--text);
+    cursor: pointer;
+  }
+
+  .layout {
+    display: grid;
+    grid-template-columns: 1fr 320px;
+    grid-template-rows: auto auto;
+    gap: 0;
+    height: calc(100vh - 57px);
+  }
+
+  /* Canvas panel */
+  .canvas-panel {
+    grid-row: 1 / 3;
+    position: relative;
+    background: var(--bg);
+    overflow: hidden;
+  }
+
+  #networkCanvas {
+    width: 100%; height: 100%;
+    display: block;
+  }
+
+  /* Right side */
+  .right-panel {
+    display: flex;
+    flex-direction: column;
+    border-left: 1px solid var(--border);
+    overflow: hidden;
+    height: calc(100vh - 57px);
+  }
+
+  .panel-section {
+    border-bottom: 1px solid var(--border);
+    padding: 14px 16px;
+  }
+
+  .panel-section.grow {
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0;
+  }
+
+  .section-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    margin-bottom: 10px;
+  }
+
+  /* Metrics grid */
+  .metrics-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .metric-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 10px;
+  }
+
+  .metric-label {
+    font-family: var(--mono);
+    font-size: 9px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: 4px;
+  }
+
+  .metric-value {
+    font-family: var(--mono);
+    font-size: 22px;
+    font-weight: 700;
+    line-height: 1;
+  }
+
+  .metric-value.ia { color: var(--accent3); }
+  .metric-value.sm { color: var(--danger); }
+  .metric-value.cycle { color: var(--accent); }
+  .metric-value.net { color: var(--accent2); }
+
+  .metric-sub {
+    font-family: var(--mono);
+    font-size: 9px;
+    color: var(--text-dim);
+    margin-top: 2px;
+  }
+
+  /* Mini sparkline bars */
+  .sparkline {
+    display: flex; align-items: flex-end; gap: 1px;
+    height: 24px; margin-top: 6px;
+  }
+  .spark-bar {
+    flex: 1; border-radius: 1px 1px 0 0;
+    min-width: 2px; transition: height 0.3s;
+  }
+
+  /* Request log */
+  .log-scroll {
+    max-height: 180px;
+    overflow-y: auto;
+    font-family: var(--mono);
+    font-size: 10px;
+  }
+
+  .log-entry {
+    padding: 4px 0;
+    border-bottom: 1px solid rgba(30,45,66,0.5);
+    line-height: 1.5;
+    animation: fadeIn 0.3s ease;
+  }
+
+  @keyframes fadeIn { from { opacity: 0; transform: translateX(4px); } to { opacity: 1; transform: none; } }
+
+  .log-time { color: var(--text-dim); margin-right: 6px; }
+  .log-ok { color: var(--accent3); }
+  .log-breach { color: var(--danger); }
+  .log-claim { color: var(--accent); }
+  .log-join { color: var(--warn); }
+  .log-leave { color: var(--accent2); }
+
+  /* Controls */
+  .controls-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+
+  .control-row {
+    display: flex; align-items: center; gap: 8px; margin-bottom: 8px;
+  }
+
+  .control-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-dim);
+    white-space: nowrap;
+    min-width: 80px;
+  }
+
+  input[type="range"] {
+    flex: 1;
+    accent-color: var(--accent);
+    height: 3px;
+  }
+
+  .range-val {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text);
+    min-width: 28px;
+    text-align: right;
+  }
+
+  /* Legend */
+  .legend {
+    display: flex; flex-wrap: wrap; gap: 10px;
+    font-family: var(--mono);
+    font-size: 10px;
+  }
+
+  .legend-item {
+    display: flex; align-items: center; gap: 5px;
+  }
+
+  .legend-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+  }
+
+  .legend-line {
+    width: 18px; height: 2px;
+  }
+
+  /* Canvas overlay info */
+  .canvas-overlay {
+    position: absolute;
+    top: 12px; left: 12px;
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-dim);
+    pointer-events: none;
+  }
+
+  .canvas-overlay .cycle-badge {
+    display: inline-block;
+    background: rgba(0,212,255,0.1);
+    border: 1px solid rgba(0,212,255,0.3);
+    color: var(--accent);
+    padding: 4px 10px;
+    border-radius: 2px;
+    margin-bottom: 6px;
+  }
+
+  /* Tooltip */
+  #tooltip {
+    position: fixed;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    padding: 8px 12px;
+    border-radius: 4px;
+    font-family: var(--mono);
+    font-size: 10px;
+    pointer-events: none;
+    z-index: 999;
+    display: none;
+    max-width: 220px;
+    line-height: 1.7;
+  }
+
+  #tooltip .tt-name { color: var(--accent); font-size: 11px; font-weight: 700; margin-bottom: 3px; }
+  #tooltip .tt-row { display: flex; justify-content: space-between; gap: 12px; }
+  #tooltip .tt-key { color: var(--text-dim); }
+  #tooltip .tt-val { color: var(--text-bright); }
+
+  /* Request pulse animation */
+  .request-pulse {
+    animation: pulse-ring 0.6s ease-out forwards;
+  }
+
+  @keyframes pulse-ring {
+    0% { transform: scale(1); opacity: 1; }
+    100% { transform: scale(3); opacity: 0; }
+  }
+
+  /* Scrollbar styling */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: var(--surface); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+
+  .tpm-btns { display: flex; gap: 4px; }
+  .tpm-btn { font-size: 10px; padding: 4px 8px; }
+
+  .org-list { display: flex; flex-direction: column; gap: 4px; }
+  .org-item {
+    display: flex; align-items: center; gap: 8px;
+    padding: 5px 8px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    font-family: var(--mono);
+    font-size: 10px;
+  }
+  .org-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+  .org-name { flex: 1; color: var(--text); }
+  .org-trust-bar {
+    width: 50px; height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .org-trust-fill {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 0.5s;
+  }
+  .org-agents { color: var(--text-dim); margin-left: 4px; }
+
+  .status-dot {
+    display: inline-block;
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--accent3);
+    margin-right: 6px;
+    animation: blink 2s infinite;
+  }
+
+  @keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+
+  .paused .status-dot { animation: none; background: var(--warn); }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>IOTBSM // Agentic Trust Network</h1>
+    <div class="subtitle">Inter-Org Trust-Based Security · Per-Request Claim Model · Dynamic Network</div>
+  </div>
+  <div class="header-controls">
+    <span id="statusDot" class="status-dot"></span>
+    <span id="statusLabel" style="font-family:var(--mono);font-size:10px;color:var(--text-dim);margin-right:8px;">RUNNING</span>
+    <button class="btn" id="toggleBtn" onclick="toggleSim()">PAUSE</button>
+    <button class="btn success" onclick="stepSim()">STEP</button>
+    <button class="btn" onclick="addOrg()">+ ORG</button>
+    <button class="btn danger" onclick="removeOrg()">− ORG</button>
+    <button class="btn" onclick="fireRequest()">FIRE REQUEST</button>
+    <select id="tpmSelect" onchange="setTPM(this.value)">
+      <option value="1">TPM-1 (Proportional)</option>
+      <option value="2">TPM-2 (Uniform)</option>
+      <option value="3">TPM-3 (Initiator)</option>
+    </select>
+    <button class="btn danger" onclick="resetSim()">RESET</button>
+  </div>
+</header>
+
+<div class="layout">
+  <div class="canvas-panel">
+    <canvas id="networkCanvas"></canvas>
+    <div class="canvas-overlay">
+      <div class="cycle-badge" id="cycleBadge">CYCLE 0</div><br>
+      <div id="overlayInfo" style="line-height:2"></div>
+    </div>
+    <div style="position:absolute;bottom:12px;left:12px;">
+      <div class="legend">
+        <div class="legend-item"><div class="legend-dot" style="background:#2a9de0"></div>Agent</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#ff6b35"></div>Boundary Spanner</div>
+        <div class="legend-item"><div class="legend-line" style="background:rgba(0,212,255,0.4)"></div>Inter-Org Trust</div>
+        <div class="legend-item"><div class="legend-line" style="background:rgba(127,255,107,0.3)"></div>Agent Trust</div>
+        <div class="legend-item"><div class="legend-line" style="background:rgba(255,60,92,0.6)"></div>Breach Path</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#ffcc00;border-radius:0"></div>Claim/Request</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="right-panel">
+    <!-- Metrics -->
+    <div class="panel-section">
+      <div class="section-label">System Metrics</div>
+      <div class="metrics-grid">
+        <div class="metric-card">
+          <div class="metric-label">Info Availability</div>
+          <div class="metric-value ia" id="iaVal">—</div>
+          <div class="metric-sub" id="iaSub">% of facts shared</div>
+          <div class="sparkline" id="iaSparkline"></div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">Security Measure</div>
+          <div class="metric-value sm" id="smVal">—</div>
+          <div class="metric-sub" id="smSub">% unintended rcv</div>
+          <div class="sparkline" id="smSparkline"></div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">Cycle</div>
+          <div class="metric-value cycle" id="cycleVal">0</div>
+          <div class="metric-sub" id="cycleSub">requests fired</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">Network</div>
+          <div class="metric-value net" id="netVal">0</div>
+          <div class="metric-sub" id="netSub">orgs · agents · BS</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Controls -->
+    <div class="panel-section">
+      <div class="section-label">Simulation Controls</div>
+      <div class="control-row">
+        <span class="control-label">Speed</span>
+        <input type="range" id="speedSlider" min="200" max="3000" value="1200" step="100"
+          oninput="updateSpeed(this.value)">
+        <span class="range-val" id="speedVal">1.2s</span>
+      </div>
+      <div class="control-row">
+        <span class="control-label">Trust Thresh</span>
+        <input type="range" id="threshSlider" min="0.1" max="0.9" value="0.35" step="0.05"
+          oninput="updateThresh(this.value)">
+        <span class="range-val" id="threshVal">0.35</span>
+      </div>
+      <div class="control-row">
+        <span class="control-label">Trust Decay</span>
+        <input type="range" id="decaySlider" min="0.02" max="0.3" value="0.1" step="0.01"
+          oninput="updateDecay(this.value)">
+        <span class="range-val" id="decayVal">0.10</span>
+      </div>
+      <div class="control-row">
+        <span class="control-label">BS Alpha (α)</span>
+        <input type="range" id="alphaSlider" min="0.5" max="0.95" value="0.7" step="0.05"
+          oninput="updateAlpha(this.value)">
+        <span class="range-val" id="alphaVal">0.70</span>
+      </div>
+      <div class="control-row">
+        <span class="control-label">BS Rate (β)</span>
+        <input type="range" id="betaSlider" min="3" max="20" value="8" step="1"
+          oninput="updateBeta(this.value)">
+        <span class="range-val" id="betaVal">8</span>
+      </div>
+    </div>
+
+    <!-- Org list -->
+    <div class="panel-section" style="max-height:160px;overflow-y:auto;">
+      <div class="section-label">Organizations</div>
+      <div class="org-list" id="orgList"></div>
+    </div>
+
+    <!-- Event log -->
+    <div class="panel-section grow">
+      <div class="section-label">Event Log</div>
+      <div class="log-scroll" id="logScroll"></div>
+    </div>
+  </div>
+</div>
+
+<div id="tooltip"></div>
+
+<script>
+// ============================================================
+// IOTBSM SIMULATION ENGINE
+// Agentic AI per-request claim model, dynamic network
+// ============================================================
+
+// ---- Config ----
+let CFG = {
+  trustThreshold: 0.35,
+  trustDecay: 0.10,
+  alpha: 0.70,          // inter-org trust weight in BS trust
+  beta: 8,              // boundary spanner re-election cycle
+  bsPercent: 0.25,      // % of agents that become BS
+  expirationInterval: 5,
+  tpm: 1,               // trust policy model
+  speed: 1200,
+};
+
+// ---- State ----
+let state = {
+  cycle: 0,
+  orgs: [],
+  agents: [],
+  facts: [],
+  requests: [],         // per-request claim events
+  iaHistory: [],
+  smHistory: [],
+  running: true,
+  simTimer: null,
+  totalRequests: 0,
+  totalBreaches: 0,
+  totalShared: 0,
+  totalIntended: 0,
+};
+
+// ---- Canvas ----
+const canvas = document.getElementById('networkCanvas');
+const ctx = canvas.getContext('2d');
+let W, H;
+
+function resizeCanvas() {
+  const panel = canvas.parentElement;
+  W = canvas.width = panel.clientWidth;
+  H = canvas.height = panel.clientHeight;
+}
+
+window.addEventListener('resize', () => { resizeCanvas(); layoutOrgs(); });
+resizeCanvas();
+
+// ============================================================
+// DATA STRUCTURES
+// ============================================================
+
+let orgIdCounter = 0;
+let agentIdCounter = 0;
+let factIdCounter = 0;
+let claimIdCounter = 0;
+
+const ORG_COLORS = [
+  '#2a9de0','#e05a2a','#2ae08a','#e0d02a','#9b2ae0',
+  '#2ae0d4','#e02a7a','#8ae02a','#e07a2a','#2a5ae0'
+];
+
+function createOrg(x, y) {
+  const id = orgIdCounter++;
+  const org = {
+    id, x, y,
+    name: `ORG-${String.fromCharCode(65 + id % 26)}${id > 25 ? Math.floor(id/26) : ''}`,
+    color: ORG_COLORS[id % ORG_COLORS.length],
+    agents: [],
+    boundarySpaners: [],  // subset of agents
+    factRepo: [],         // fact request repository
+    trustIn: {},          // trustIn[orgId] = {value, interactions}
+    interactionCount: {},
+    joined: state.cycle,
+  };
+  return org;
+}
+
+function createAgent(orgId) {
+  const id = agentIdCounter++;
+  const org = getOrg(orgId);
+  const angle = Math.random() * Math.PI * 2;
+  const radius = 45 + Math.random() * 40;
+  return {
+    id,
+    name: `A${id}`,
+    orgId,
+    // Position relative to org center
+    offsetX: Math.cos(angle) * radius,
+    offsetY: Math.sin(angle) * radius,
+    isBoundarySpanner: false,
+    trustIn: {},        // trustIn[agentId] = 0.0-1.0
+    reliability: 0,
+    factsGenerated: [],
+    factRequired: null,
+    satisfied: false,
+    joinedCycle: state.cycle,
+    // Per-request claim fields
+    currentClaims: [],  // active claims this cycle
+    role: 'agent',
+  };
+}
+
+function getOrg(id) { return state.orgs.find(o => o.id === id); }
+function getAgent(id) { return state.agents.find(a => a.id === id); }
+
+// ============================================================
+// INITIALIZATION
+// ============================================================
+
+function initSim() {
+  state = {
+    cycle: 0, orgs: [], agents: [], facts: [],
+    requests: [], iaHistory: [], smHistory: [],
+    running: true, simTimer: null,
+    totalRequests: 0, totalBreaches: 0,
+    totalShared: 0, totalIntended: 0,
+  };
+
+  orgIdCounter = 0; agentIdCounter = 0;
+  factIdCounter = 0; claimIdCounter = 0;
+
+  // Create 4 orgs
+  for (let i = 0; i < 4; i++) addOrg(false);
+
+  layoutOrgs();
+  initInterOrgTrust();
+  initAgentTrust();
+  electBoundarySpanners();
+
+  scheduleSim();
+  renderLoop();
+}
+
+function layoutOrgs() {
+  const cx = W / 2, cy = H / 2;
+  const r = Math.min(W, H) * 0.3;
+  state.orgs.forEach((org, i) => {
+    const angle = (i / state.orgs.length) * Math.PI * 2 - Math.PI / 2;
+    org.x = cx + Math.cos(angle) * r;
+    org.y = cy + Math.sin(angle) * r;
+  });
+}
+
+function addOrg(doLayout = true) {
+  const org = createOrg(W / 2, H / 2);
+  state.orgs.push(org);
+
+  // Add 3-6 agents
+  const count = 3 + Math.floor(Math.random() * 4);
+  for (let i = 0; i < count; i++) {
+    const agent = createAgent(org.id);
+    agent.factRequired = factIdCounter + Math.floor(Math.random() * 10);
+    state.agents.push(agent);
+    org.agents.push(agent.id);
+  }
+
+  // Init trust with existing orgs
+  state.orgs.forEach(o => {
+    if (o.id !== org.id) {
+      const t = 0.1 + Math.random() * 0.3;
+      if (!org.trustIn[o.id]) org.trustIn[o.id] = { value: t, interactions: 0 };
+      if (!o.trustIn[org.id]) o.trustIn[org.id] = { value: t, interactions: 0 };
+      if (!org.interactionCount[o.id]) org.interactionCount[o.id] = 0;
+      if (!o.interactionCount[org.id]) o.interactionCount[org.id] = 0;
+    }
+  });
+
+  // Init agent trust within org
+  initAgentTrustForOrg(org);
+
+  if (doLayout) {
+    layoutOrgs();
+    initInterOrgTrust();
+    electBoundarySpanners();
+    logEvent('join', `${org.name} joined the network (${org.agents.length} agents)`);
+  }
+
+  return org;
+}
+
+function removeOrg() {
+  if (state.orgs.length <= 2) { logEvent('warn', 'Min 2 orgs required'); return; }
+  const org = state.orgs[state.orgs.length - 1];
+  // Remove agents
+  state.agents = state.agents.filter(a => a.orgId !== org.id);
+  state.orgs = state.orgs.filter(o => o.id !== org.id);
+  // Clean up trust refs
+  state.orgs.forEach(o => { delete o.trustIn[org.id]; delete o.interactionCount[org.id]; });
+  layoutOrgs();
+  logEvent('leave', `${org.name} left the network`);
+}
+
+function initInterOrgTrust() {
+  state.orgs.forEach(o1 => {
+    state.orgs.forEach(o2 => {
+      if (o1.id === o2.id) return;
+      if (!o1.trustIn[o2.id]) {
+        o1.trustIn[o2.id] = { value: 0.1 + Math.random() * 0.3, interactions: 0 };
+      }
+      if (!o1.interactionCount[o2.id]) o1.interactionCount[o2.id] = 0;
+    });
+  });
+}
+
+function initAgentTrust() {
+  state.orgs.forEach(org => initAgentTrustForOrg(org));
+}
+
+function initAgentTrustForOrg(org) {
+  const orgAgents = state.agents.filter(a => a.orgId === org.id);
+  orgAgents.forEach(a => {
+    orgAgents.forEach(b => {
+      if (a.id === b.id) { a.trustIn[b.id] = 1.0; return; }
+      if (a.trustIn[b.id] === undefined) {
+        a.trustIn[b.id] = 0.2 + Math.random() * 0.6;
+      }
+    });
+  });
+}
+
+// ============================================================
+// BOUNDARY SPANNER ELECTION (Reliability Ranking)
+// ============================================================
+
+function electBoundarySpanners() {
+  state.orgs.forEach(org => {
+    const orgAgents = state.agents.filter(a => a.orgId === org.id);
+    if (!orgAgents.length) return;
+
+    // Compute reliability for each agent
+    orgAgents.forEach(agent => {
+      // Direct trust: sum of other agents' trust in this agent
+      let directSum = 0, directCount = 0;
+      orgAgents.forEach(other => {
+        if (other.id !== agent.id && other.trustIn[agent.id] !== undefined) {
+          directSum += other.trustIn[agent.id];
+          directCount++;
+        }
+      });
+      const directAvg = directCount > 0 ? directSum / directCount : 0;
+      // Indirect (simplified): average of 2-hop trust paths
+      let indirectSum = 0, indirectCount = 0;
+      orgAgents.forEach(mid => {
+        if (mid.id === agent.id) return;
+        orgAgents.forEach(src => {
+          if (src.id === agent.id || src.id === mid.id) return;
+          const t1 = src.trustIn[mid.id] ?? 0;
+          const t2 = mid.trustIn[agent.id] ?? 0;
+          // Transitivity allowed for reliability (not for sharing)
+          indirectSum += Math.min(t1, t2);
+          indirectCount++;
+        });
+      });
+      const indirectAvg = indirectCount > 0 ? indirectSum / indirectCount : 0;
+      // Weighted reliability
+      agent.reliability = directAvg * (directCount / Math.max(1, orgAgents.length - 1))
+        + 0.3 * indirectAvg;
+    });
+
+    // Sort by reliability
+    orgAgents.sort((a, b) => b.reliability - a.reliability);
+    const bsCount = Math.max(1, Math.ceil(orgAgents.length * CFG.bsPercent));
+
+    // Demote old BS
+    orgAgents.forEach(a => {
+      if (a.isBoundarySpanner) {
+        a.isBoundarySpanner = false;
+        a.role = 'agent';
+        // Remove inter-org BS trust relations
+        Object.keys(a.trustIn).forEach(tid => {
+          const other = getAgent(parseInt(tid));
+          if (other && other.orgId !== org.id) delete a.trustIn[tid];
+        });
+      }
+    });
+
+    // Promote top N
+    org.boundarySpanners = [];
+    for (let i = 0; i < bsCount; i++) {
+      const bs = orgAgents[i];
+      bs.isBoundarySpanner = true;
+      bs.role = 'boundary_spanner';
+      org.boundarySpanners.push(bs.id);
+    }
+
+    // Establish BS-BS relations across orgs
+    const myBS = orgAgents.filter(a => a.isBoundarySpanner);
+    state.orgs.forEach(otherOrg => {
+      if (otherOrg.id === org.id) return;
+      const otherBS = state.agents.filter(a =>
+        a.orgId === otherOrg.id && a.isBoundarySpanner
+      );
+      myBS.forEach(bs => {
+        otherBS.forEach(obs => {
+          if (bs.trustIn[obs.id] === undefined) {
+            bs.trustIn[obs.id] = 0.2 + Math.random() * 0.5;
+          }
+        });
+      });
+    });
+  });
+}
+
+// ============================================================
+// PER-REQUEST CLAIM MODEL (Core agentic extension)
+// An agent carries a per-request claim: {orgId, role, context}
+// An agent may act for DIFFERENT orgs on different requests
+// ============================================================
+
+function createClaim(agentId, requestingOrgId, targetOrgId, factNeeded) {
+  return {
+    id: claimIdCounter++,
+    agentId,
+    requestingOrgId,
+    targetOrgId,
+    factNeeded,
+    timestamp: state.cycle,
+    status: 'pending', // pending | granted | denied | breached
+    path: [],          // entity path
+  };
+}
+
+// ============================================================
+// SIMULATION STEP
+// ============================================================
+
+function simStep() {
+  state.cycle++;
+  document.getElementById('cycleBadge').textContent = `CYCLE ${state.cycle}`;
+
+  // 1. Boundary spanner regulatory process
+  if (state.cycle % CFG.beta === 0) {
+    electBoundarySpanners();
+    logEvent('system', `BS election at cycle ${state.cycle}`);
+  }
+
+  // 2. Generate facts for each agent
+  const factWarehouse = Array.from({length: 20}, (_, i) => i);
+  state.agents.forEach(agent => {
+    if (agent.isBoundarySpanner) return;
+    const fact = {
+      id: factIdCounter++,
+      value: factWarehouse[Math.floor(Math.random() * factWarehouse.length)],
+      initiator: agent.id,
+      cycle: state.cycle,
+      pedigree: [agent.id],
+      expired: false,
+    };
+    agent.factsGenerated.push(fact);
+    state.facts.push(fact);
+    // Expire old
+    state.facts.forEach(f => {
+      if (state.cycle - f.cycle > CFG.expirationInterval) f.expired = true;
+    });
+    state.facts = state.facts.filter(f => !f.expired);
+  });
+
+  // 3. Determine each agent's fact requirement
+  state.agents.forEach(agent => {
+    if (!agent.factRequired) {
+      agent.factRequired = Math.floor(Math.random() * 20);
+    }
+    // Check if satisfied
+    agent.satisfied = agent.factsGenerated.some(f => f.value === agent.factRequired);
+  });
+
+  // 4. Fire 1-3 information-sharing requests this cycle
+  const reqCount = 1 + Math.floor(Math.random() * 3);
+  for (let r = 0; r < reqCount; r++) {
+    fireInfoRequest();
+  }
+
+  // 5. Build inter-org trust via logistic growth (eq. 5)
+  updateInterOrgTrust();
+
+  // 6. Compute metrics
+  computeMetrics();
+
+  // 7. Dynamic network events (random org join/leave)
+  if (state.cycle > 5 && Math.random() < 0.04) {
+    if (state.orgs.length < 7) {
+      addOrg();
+    }
+  }
+  if (state.cycle > 10 && Math.random() < 0.025) {
+    if (state.orgs.length > 2) removeOrg();
+  }
+
+  updateUI();
+}
+
+// ============================================================
+// INFORMATION REQUEST (Per-request Claim)
+// ============================================================
+
+function fireInfoRequest(manual = false) {
+  if (state.agents.length < 2) return;
+
+  // Pick a requesting agent (the "agentic AI")
+  const unsatisfied = state.agents.filter(a => !a.satisfied);
+  if (!unsatisfied.length) return;
+  const requester = unsatisfied[Math.floor(Math.random() * unsatisfied.length)];
+
+  // Agent asserts a per-request claim: it acts on behalf of its org
+  // but could also be invoked by another org (cross-org request)
+  const requestingOrg = getOrg(requester.orgId);
+  if (!requestingOrg) return;
+
+  // Find a target org that might have the needed fact
+  const otherOrgs = state.orgs.filter(o => o.id !== requestingOrg.id);
+  if (!otherOrgs.length) return;
+  const targetOrg = otherOrgs[Math.floor(Math.random() * otherOrgs.length)];
+
+  const claim = createClaim(
+    requester.id,
+    requestingOrg.id,
+    targetOrg.id,
+    requester.factRequired
+  );
+
+  state.totalRequests++;
+
+  // Evaluate claim through trust chain
+  const result = evaluateClaim(claim, requester, requestingOrg, targetOrg);
+  state.requests.push({ claim, result, cycle: state.cycle });
+
+  if (manual) {
+    logEvent('claim', `Manual request: ${requester.name}@${requestingOrg.name} → ${targetOrg.name} [fact:${requester.factRequired}] → ${result.status}`);
+  }
+
+  return result;
+}
+
+function fireRequest() {
+  // Manual single request
+  const r = fireInfoRequest(true);
+  if (r) updateUI();
+}
+
+function evaluateClaim(claim, requester, requestingOrg, targetOrg) {
+  const result = { status: 'pending', path: [requester.id], breach: false, reason: '' };
+
+  // Step 1: Find boundary spanners for both orgs
+  const reqBS = state.agents.filter(a => a.orgId === requestingOrg.id && a.isBoundarySpanner);
+  const tgtBS = state.agents.filter(a => a.orgId === targetOrg.id && a.isBoundarySpanner);
+
+  if (!reqBS.length || !tgtBS.length) {
+    result.status = 'denied';
+    result.reason = 'No boundary spanners available';
+    logEvent('breach', `No BS: ${requestingOrg.name} → ${targetOrg.name}`);
+    return result;
+  }
+
+  // Step 2: Per-request claim — agent asserts claim token
+  // The claim is: "I am acting for org X, requesting from org Y"
+  // Trust check: agent → own BS (inter-personal)
+  const myBS = reqBS[0];
+  const agentTrustInBS = requester.trustIn[myBS.id] ?? 0;
+
+  if (agentTrustInBS < CFG.trustThreshold) {
+    result.status = 'denied';
+    result.reason = `Insufficient agent→BS trust (${agentTrustInBS.toFixed(2)})`;
+    applyTPM(claim, result, requester, myBS, null, null, 'agent-bs');
+    return result;
+  }
+  result.path.push(myBS.id);
+
+  // Step 3: BS → BS inter-org trust check
+  const theirBS = tgtBS[Math.floor(Math.random() * tgtBS.length)];
+  // Instantaneous BS trust (eq 7 from paper, α-blended)
+  const interOrgTrust = (requestingOrg.trustIn[targetOrg.id]?.value ?? 0);
+  const prevBSTrust = myBS.trustIn[theirBS.id] ?? 0;
+  const instantBSTrust = interOrgTrust * CFG.alpha + prevBSTrust * (1 - CFG.alpha);
+
+  // Update BS trust
+  myBS.trustIn[theirBS.id] = instantBSTrust;
+
+  // ISP3: Check BS-BS trust threshold
+  if (instantBSTrust < CFG.trustThreshold) {
+    result.status = 'denied';
+    result.reason = `BS-BS trust too low (${instantBSTrust.toFixed(2)})`;
+    applyTPM(claim, result, requester, myBS, theirBS, targetOrg, 'bs-bs');
+    return result;
+  }
+  result.path.push(theirBS.id);
+
+  // Step 4: Their BS delivers to a target agent
+  const targetAgents = state.agents.filter(a =>
+    a.orgId === targetOrg.id && !a.isBoundarySpanner
+  );
+  if (!targetAgents.length) {
+    result.status = 'denied'; result.reason = 'No target agents'; return result;
+  }
+  const targetAgent = targetAgents[Math.floor(Math.random() * targetAgents.length)];
+  result.path.push(targetAgent.id);
+
+  // ISP4: Check recipient willingness
+  if (targetAgent.satisfied) {
+    result.status = 'denied'; result.reason = 'Target already satisfied'; return result;
+  }
+
+  // Check inter-org trust threshold for fact transfer
+  if (interOrgTrust < CFG.trustThreshold * 0.8) {
+    result.status = 'breached';
+    result.breach = true;
+    result.reason = `Inter-org trust insufficient (${interOrgTrust.toFixed(2)})`;
+    state.totalBreaches++;
+    applyTPM(claim, result, requester, myBS, theirBS, targetOrg, 'inter-org');
+    logEvent('breach', `BREACH ${requestingOrg.name}→${targetOrg.name} [T:${interOrgTrust.toFixed(2)}]`);
+    return result;
+  }
+
+  // SUCCESS — fact flows
+  result.status = 'granted';
+  state.totalShared++;
+  state.totalIntended++;
+
+  // Deliver fact
+  const availFacts = state.facts.filter(f =>
+    f.initiator !== requester.id && !f.expired &&
+    state.agents.find(a => a.id === f.initiator)?.orgId === targetOrg.id
+  );
+
+  if (availFacts.length) {
+    const fact = availFacts[Math.floor(Math.random() * availFacts.length)];
+    fact.pedigree.push(requester.id);
+    if (fact.value === requester.factRequired) {
+      requester.satisfied = true;
+      logEvent('ok', `✓ ${requester.name}@${requestingOrg.name} satisfied via ${targetOrg.name} [fact:${fact.value}]`);
+    } else {
+      logEvent('ok', `→ ${requester.name}@${requestingOrg.name}↔${targetOrg.name} [fact:${fact.value}]`);
+    }
+  }
+
+  // Update inter-org interaction count
+  if (!requestingOrg.interactionCount[targetOrg.id]) requestingOrg.interactionCount[targetOrg.id] = 0;
+  requestingOrg.interactionCount[targetOrg.id]++;
+
+  // Add visual request pulse
+  addPulse(requester, myBS, theirBS, targetAgent, result.status === 'granted');
+
+  return result;
+}
+
+// ============================================================
+// TRUST POLICY MODELS (TPM 1/2/3)
+// ============================================================
+
+function applyTPM(claim, result, initiator, bsA, bsB, targetOrg, scope) {
+  const dec = CFG.trustDecay;
+
+  if (CFG.tpm === 1) {
+    // TPM1: Proportional responsibility along path
+    const path = result.path;
+    path.forEach((aid, idx) => {
+      if (idx === 0) return;
+      const prev = getAgent(path[idx - 1]);
+      const curr = getAgent(aid);
+      if (prev && curr) {
+        const depth = idx;
+        const update = Math.pow(dec, path.length - depth + 1);
+        prev.trustIn[aid] = Math.max(0, (prev.trustIn[aid] ?? 0.5) - update);
+      }
+    });
+  } else if (CFG.tpm === 2) {
+    // TPM2: Uniform decrement for all edges
+    const path = result.path;
+    for (let i = 1; i < path.length; i++) {
+      const prev = getAgent(path[i - 1]);
+      if (prev) prev.trustIn[path[i]] = Math.max(0, (prev.trustIn[path[i]] ?? 0.5) - dec);
+    }
+  } else if (CFG.tpm === 3) {
+    // TPM3: Initiator reduces trust in all path members
+    result.path.slice(1).forEach(aid => {
+      initiator.trustIn[aid] = Math.max(0, (initiator.trustIn[aid] ?? 0.5) - dec);
+    });
+  }
+
+  // Also reduce inter-org trust slightly on breach
+  if (result.breach && targetOrg) {
+    const org = getOrg(initiator.orgId);
+    if (org && org.trustIn[targetOrg.id]) {
+      org.trustIn[targetOrg.id].value = Math.max(0,
+        org.trustIn[targetOrg.id].value - dec * 0.5
+      );
+    }
+  }
+}
+
+// ============================================================
+// LOGISTIC INTER-ORG TRUST GROWTH (Equation 5)
+// ============================================================
+
+function updateInterOrgTrust() {
+  state.orgs.forEach(om => {
+    state.orgs.forEach(on => {
+      if (om.id === on.id) return;
+      const t = om.trustIn[on.id];
+      if (!t) return;
+
+      // Rate r: avg of BS trust relations (eq 6)
+      const myBS = state.agents.filter(a => a.orgId === om.id && a.isBoundarySpanner);
+      const theirBS = state.agents.filter(a => a.orgId === on.id && a.isBoundarySpanner);
+      if (!myBS.length || !theirBS.length) return;
+
+      let trustSum = 0, trustCount = 0;
+      myBS.forEach(bs => {
+        theirBS.forEach(obs => {
+          if (bs.trustIn[obs.id] !== undefined) {
+            trustSum += bs.trustIn[obs.id];
+            trustCount++;
+          }
+        });
+      });
+
+      if (!trustCount) return;
+      const x = myBS.length, y = theirBS.length;
+      const r = (trustSum / trustCount) / Math.pow(x * y, x);
+      const i = om.interactionCount[on.id] ?? 0;
+      const t0 = t.value;
+
+      // Logistic growth: τ(i) = τ0 / (τ0 + (1-τ0)*e^(-r*i))
+      if (i > 0 && r > 0) {
+        const newT = t0 / (t0 + (1 - t0) * Math.exp(-r * i * 0.01));
+        om.trustIn[on.id].value = Math.min(1, Math.max(0, newT));
+      }
+    });
+  });
+}
+
+// ============================================================
+// METRICS
+// ============================================================
+
+function computeMetrics() {
+  const ia = state.totalShared > 0
+    ? Math.round((state.totalIntended / state.totalShared) * 100)
+    : 0;
+  const sm = state.totalShared > 0
+    ? Math.round((state.totalBreaches / state.totalShared) * 100)
+    : 0;
+
+  state.iaHistory.push(ia);
+  state.smHistory.push(sm);
+  if (state.iaHistory.length > 30) state.iaHistory.shift();
+  if (state.smHistory.length > 30) state.smHistory.shift();
+
+  document.getElementById('iaVal').textContent = ia + '%';
+  document.getElementById('smVal').textContent = sm + '%';
+  document.getElementById('cycleVal').textContent = state.cycle;
+  document.getElementById('cycleSub').textContent = `${state.totalRequests} requests`;
+  document.getElementById('netVal').textContent = state.orgs.length;
+  document.getElementById('netSub').textContent =
+    `${state.orgs.length} orgs · ${state.agents.filter(a=>!a.isBoundarySpanner).length} agents · ${state.agents.filter(a=>a.isBoundarySpanner).length} BS`;
+
+  renderSparkline('iaSparkline', state.iaHistory, '#7fff6b');
+  renderSparkline('smSparkline', state.smHistory, '#ff3b5c');
+  renderOrgList();
+}
+
+function renderSparkline(id, data, color) {
+  const el = document.getElementById(id);
+  el.innerHTML = '';
+  const max = Math.max(...data, 1);
+  data.forEach(v => {
+    const bar = document.createElement('div');
+    bar.className = 'spark-bar';
+    bar.style.background = color;
+    bar.style.height = Math.max(2, (v / max) * 24) + 'px';
+    bar.style.opacity = 0.4 + 0.6 * (v / max);
+    el.appendChild(bar);
+  });
+}
+
+function renderOrgList() {
+  const el = document.getElementById('orgList');
+  el.innerHTML = '';
+  state.orgs.forEach(org => {
+    const avgTrust = Object.values(org.trustIn).reduce((s, t) => s + t.value, 0)
+      / Math.max(1, Object.values(org.trustIn).length);
+    const div = document.createElement('div');
+    div.className = 'org-item';
+    div.innerHTML = `
+      <div class="org-dot" style="background:${org.color}"></div>
+      <span class="org-name">${org.name}</span>
+      <div class="org-trust-bar">
+        <div class="org-trust-fill" style="width:${avgTrust*100}%;background:${org.color}"></div>
+      </div>
+      <span class="org-agents">${state.agents.filter(a=>a.orgId===org.id&&a.isBoundarySpanner).length}BS/${org.agents.length}</span>
+    `;
+    el.appendChild(div);
+  });
+}
+
+// ============================================================
+// VISUAL PULSES (animated request paths)
+// ============================================================
+
+let pulses = [];
+
+function addPulse(agentA, bsA, bsB, agentB, success) {
+  if (!agentA || !bsA || !bsB || !agentB) return;
+  pulses.push({
+    path: [agentA, bsA, bsB, agentB],
+    progress: 0,
+    success,
+    created: Date.now(),
+    duration: 1200,
+  });
+}
+
+// ============================================================
+// RENDER LOOP
+// ============================================================
+
+let hoveredEntity = null;
+
+function getEntityScreenPos(entity) {
+  if (!entity) return null;
+  if (entity.orgId !== undefined) {
+    // Agent
+    const org = getOrg(entity.orgId);
+    if (!org) return null;
+    return { x: org.x + entity.offsetX, y: org.y + entity.offsetY };
+  }
+  return { x: entity.x, y: entity.y };
+}
+
+function renderLoop() {
+  ctx.clearRect(0, 0, W, H);
+
+  // Background
+  ctx.fillStyle = '#080c14';
+  ctx.fillRect(0, 0, W, H);
+
+  if (!state.orgs.length) { requestAnimationFrame(renderLoop); return; }
+
+  // Draw inter-org trust edges
+  state.orgs.forEach(om => {
+    state.orgs.forEach(on => {
+      if (om.id >= on.id) return;
+      const t = om.trustIn[on.id]?.value ?? 0;
+      ctx.beginPath();
+      ctx.moveTo(om.x, om.y);
+      ctx.lineTo(on.x, on.y);
+      ctx.strokeStyle = `rgba(0,212,255,${t * 0.5})`;
+      ctx.lineWidth = 1 + t * 3;
+      ctx.setLineDash([6, 6]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Trust label
+      const mx = (om.x + on.x) / 2, my = (om.y + on.y) / 2;
+      ctx.fillStyle = `rgba(0,212,255,${0.4 + t * 0.4})`;
+      ctx.font = '9px Space Mono, monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(t.toFixed(2), mx, my - 5);
+    });
+  });
+
+  // Draw agent trust edges (intra-org)
+  state.orgs.forEach(org => {
+    const agents = state.agents.filter(a => a.orgId === org.id);
+    agents.forEach(a => {
+      agents.forEach(b => {
+        if (a.id >= b.id) return;
+        const t = a.trustIn[b.id] ?? 0;
+        if (t < 0.1) return;
+        const ax = org.x + a.offsetX, ay = org.y + a.offsetY;
+        const bx = org.x + b.offsetX, by = org.y + b.offsetY;
+        ctx.beginPath();
+        ctx.moveTo(ax, ay); ctx.lineTo(bx, by);
+        ctx.strokeStyle = `rgba(127,255,107,${t * 0.25})`;
+        ctx.lineWidth = 0.5 + t;
+        ctx.stroke();
+      });
+    });
+  });
+
+  // Draw BS-BS edges across orgs
+  state.agents.filter(a => a.isBoundarySpanner).forEach(bs => {
+    Object.entries(bs.trustIn).forEach(([tid, tv]) => {
+      const other = getAgent(parseInt(tid));
+      if (!other || !other.isBoundarySpanner || other.orgId === bs.orgId) return;
+      const orgA = getOrg(bs.orgId), orgB = getOrg(other.orgId);
+      if (!orgA || !orgB) return;
+      const ax = orgA.x + bs.offsetX, ay = orgA.y + bs.offsetY;
+      const bx = orgB.x + other.offsetX, by = orgB.y + other.offsetY;
+      ctx.beginPath();
+      ctx.moveTo(ax, ay); ctx.lineTo(bx, by);
+      ctx.strokeStyle = `rgba(255,107,53,${tv * 0.5})`;
+      ctx.lineWidth = 0.8 + tv * 1.5;
+      ctx.setLineDash([3, 4]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    });
+  });
+
+  // Draw org circles
+  state.orgs.forEach(org => {
+    const r = 30 + org.agents.length * 3;
+
+    // Glow
+    const grd = ctx.createRadialGradient(org.x, org.y, 0, org.x, org.y, r * 2);
+    grd.addColorStop(0, org.color + '20');
+    grd.addColorStop(1, 'transparent');
+    ctx.fillStyle = grd;
+    ctx.beginPath();
+    ctx.arc(org.x, org.y, r * 2, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Org ring
+    ctx.beginPath();
+    ctx.arc(org.x, org.y, r, 0, Math.PI * 2);
+    ctx.strokeStyle = org.color + '60';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([4, 3]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Org label
+    ctx.fillStyle = org.color;
+    ctx.font = 'bold 11px Space Mono, monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(org.name, org.x, org.y + r + 14);
+
+    // Draw agents
+    state.agents.filter(a => a.orgId === org.id).forEach(agent => {
+      const ax = org.x + agent.offsetX;
+      const ay = org.y + agent.offsetY;
+      const isBS = agent.isBoundarySpanner;
+      const nodeR = isBS ? 8 : 5;
+
+      // Node glow
+      if (isBS) {
+        ctx.beginPath();
+        ctx.arc(ax, ay, 14, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(255,107,53,0.15)';
+        ctx.fill();
+      }
+
+      // Node
+      ctx.beginPath();
+      if (isBS) {
+        // Diamond shape for BS
+        ctx.moveTo(ax, ay - nodeR);
+        ctx.lineTo(ax + nodeR, ay);
+        ctx.lineTo(ax, ay + nodeR);
+        ctx.lineTo(ax - nodeR, ay);
+        ctx.closePath();
+        ctx.fillStyle = '#ff6b35';
+        ctx.fill();
+        ctx.strokeStyle = '#ff9966';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      } else {
+        ctx.arc(ax, ay, nodeR, 0, Math.PI * 2);
+        ctx.fillStyle = agent.satisfied
+          ? '#7fff6b'
+          : `hsl(${210 + agent.reliability * 40},70%,${40 + agent.reliability * 20}%)`;
+        ctx.fill();
+        ctx.strokeStyle = org.color + '80';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      }
+
+      // Agent name (only on hover or BS)
+      if (isBS || hoveredEntity?.id === agent.id) {
+        ctx.fillStyle = isBS ? '#ff9966' : org.color;
+        ctx.font = `${isBS ? 'bold ' : ''}9px Space Mono, monospace`;
+        ctx.textAlign = 'center';
+        ctx.fillText(agent.name, ax, ay - nodeR - 3);
+        if (isBS) ctx.fillText('BS', ax, ay + nodeR + 10);
+      }
+    });
+  });
+
+  // Draw claim pulses
+  const now = Date.now();
+  pulses = pulses.filter(p => now - p.created < p.duration);
+  pulses.forEach(pulse => {
+    const t = (now - pulse.created) / pulse.duration;
+    const pathLen = pulse.path.length - 1;
+    const seg = Math.floor(t * pathLen);
+    const segT = (t * pathLen) - seg;
+
+    for (let i = 0; i < Math.min(seg + 1, pathLen); i++) {
+      const a = pulse.path[i], b = pulse.path[i + 1];
+      if (!a || !b) continue;
+      const orgA = getOrg(a.orgId), orgB = getOrg(b.orgId);
+      if (!orgA || !orgB) continue;
+      const ax = orgA.x + a.offsetX, ay = orgA.y + a.offsetY;
+      const bx = orgB.x + b.offsetX, by = orgB.y + b.offsetY;
+
+      const alpha = i < seg ? 0.6 * (1 - t) : 0.9 * (1 - t);
+      ctx.beginPath();
+      ctx.moveTo(ax, ay);
+      if (i === seg) {
+        ctx.lineTo(ax + (bx - ax) * segT, ay + (by - ay) * segT);
+      } else {
+        ctx.lineTo(bx, by);
+      }
+      ctx.strokeStyle = pulse.success
+        ? `rgba(127,255,107,${alpha})`
+        : `rgba(255,59,92,${alpha})`;
+      ctx.lineWidth = 2.5;
+      ctx.stroke();
+    }
+
+    // Particle at current pos
+    const seg2 = Math.min(seg, pathLen - 1);
+    const a2 = pulse.path[seg2], b2 = pulse.path[seg2 + 1];
+    if (a2 && b2) {
+      const orgA2 = getOrg(a2.orgId), orgB2 = getOrg(b2.orgId);
+      if (orgA2 && orgB2) {
+        const px = orgA2.x + a2.offsetX + (orgB2.x + b2.offsetX - orgA2.x - a2.offsetX) * (t * pathLen - seg2);
+        const py = orgA2.y + a2.offsetY + (orgB2.y + b2.offsetY - orgA2.y - a2.offsetY) * (t * pathLen - seg2);
+        ctx.beginPath();
+        ctx.arc(px, py, 4, 0, Math.PI * 2);
+        ctx.fillStyle = pulse.success ? '#7fff6b' : '#ff3b5c';
+        ctx.fill();
+      }
+    }
+  });
+
+  // Overlay info
+  document.getElementById('overlayInfo').innerHTML =
+    `<span style="color:var(--text-dim)">orgs:</span> <span style="color:var(--text)">${state.orgs.length}</span>&nbsp;
+     <span style="color:var(--text-dim)">agents:</span> <span style="color:var(--text)">${state.agents.filter(a=>!a.isBoundarySpanner).length}</span>&nbsp;
+     <span style="color:var(--text-dim)">BS:</span> <span style="color:#ff6b35">${state.agents.filter(a=>a.isBoundarySpanner).length}</span>&nbsp;
+     <span style="color:var(--text-dim)">req:</span> <span style="color:var(--accent)">${state.totalRequests}</span>`;
+
+  requestAnimationFrame(renderLoop);
+}
+
+// ============================================================
+// CANVAS MOUSE HOVER (Tooltip)
+// ============================================================
+
+canvas.addEventListener('mousemove', (e) => {
+  const rect = canvas.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+  const tip = document.getElementById('tooltip');
+
+  hoveredEntity = null;
+
+  for (const agent of state.agents) {
+    const org = getOrg(agent.orgId);
+    if (!org) continue;
+    const ax = org.x + agent.offsetX;
+    const ay = org.y + agent.offsetY;
+    const dist = Math.hypot(mx - ax, my - ay);
+    if (dist < 12) {
+      hoveredEntity = agent;
+      const avgTrust = Object.values(agent.trustIn).reduce((s, v) => s + v, 0)
+        / Math.max(1, Object.values(agent.trustIn).length);
+      tip.style.display = 'block';
+      tip.style.left = (e.clientX + 12) + 'px';
+      tip.style.top = (e.clientY - 10) + 'px';
+      tip.innerHTML = `
+        <div class="tt-name">${agent.name} ${agent.isBoundarySpanner ? '⬥ BS' : ''}</div>
+        <div class="tt-row"><span class="tt-key">org</span><span class="tt-val">${getOrg(agent.orgId)?.name}</span></div>
+        <div class="tt-row"><span class="tt-key">role</span><span class="tt-val">${agent.role}</span></div>
+        <div class="tt-row"><span class="tt-key">reliability</span><span class="tt-val">${agent.reliability.toFixed(3)}</span></div>
+        <div class="tt-row"><span class="tt-key">avg trust</span><span class="tt-val">${avgTrust.toFixed(3)}</span></div>
+        <div class="tt-row"><span class="tt-key">satisfied</span><span class="tt-val" style="color:${agent.satisfied?'var(--accent3)':'var(--danger)'}">${agent.satisfied ? 'YES' : 'NO'}</span></div>
+        <div class="tt-row"><span class="tt-key">fact req</span><span class="tt-val">${agent.factRequired}</span></div>
+      `;
+      return;
+    }
+  }
+
+  for (const org of state.orgs) {
+    const dist = Math.hypot(mx - org.x, my - org.y);
+    if (dist < 35) {
+      const avgTrust = Object.values(org.trustIn).reduce((s, t) => s + t.value, 0)
+        / Math.max(1, Object.values(org.trustIn).length);
+      tip.style.display = 'block';
+      tip.style.left = (e.clientX + 12) + 'px';
+      tip.style.top = (e.clientY - 10) + 'px';
+      tip.innerHTML = `
+        <div class="tt-name">${org.name}</div>
+        <div class="tt-row"><span class="tt-key">agents</span><span class="tt-val">${org.agents.length}</span></div>
+        <div class="tt-row"><span class="tt-key">BS count</span><span class="tt-val">${state.agents.filter(a=>a.orgId===org.id&&a.isBoundarySpanner).length}</span></div>
+        <div class="tt-row"><span class="tt-key">avg I/O trust</span><span class="tt-val">${avgTrust.toFixed(3)}</span></div>
+        <div class="tt-row"><span class="tt-key">joined</span><span class="tt-val">cycle ${org.joined}</span></div>
+      `;
+      return;
+    }
+  }
+
+  tip.style.display = 'none';
+});
+
+canvas.addEventListener('mouseleave', () => {
+  document.getElementById('tooltip').style.display = 'none';
+  hoveredEntity = null;
+});
+
+// ============================================================
+// EVENT LOG
+// ============================================================
+
+function logEvent(type, msg) {
+  const log = document.getElementById('logScroll');
+  const entry = document.createElement('div');
+  entry.className = 'log-entry';
+  const cls = {
+    ok: 'log-ok', breach: 'log-breach', claim: 'log-claim',
+    join: 'log-join', leave: 'log-leave', system: 'log-claim', warn: 'log-breach'
+  }[type] || 'log-ok';
+  entry.innerHTML = `<span class="log-time">${String(state.cycle).padStart(4,'0')}</span><span class="${cls}">${msg}</span>`;
+  log.insertBefore(entry, log.firstChild);
+  // Keep log manageable
+  while (log.children.length > 80) log.removeChild(log.lastChild);
+}
+
+// ============================================================
+// SIM CONTROL
+// ============================================================
+
+function scheduleSim() {
+  if (state.simTimer) clearInterval(state.simTimer);
+  state.simTimer = setInterval(() => {
+    if (state.running) simStep();
+  }, CFG.speed);
+}
+
+function toggleSim() {
+  state.running = !state.running;
+  const btn = document.getElementById('toggleBtn');
+  const lbl = document.getElementById('statusLabel');
+  const dot = document.getElementById('statusDot');
+  btn.textContent = state.running ? 'PAUSE' : 'RESUME';
+  btn.className = state.running ? 'btn' : 'btn active';
+  lbl.textContent = state.running ? 'RUNNING' : 'PAUSED';
+  document.querySelector('header').className = state.running ? '' : 'paused';
+  dot.style.background = state.running ? 'var(--accent3)' : 'var(--warn)';
+}
+
+function stepSim() {
+  const wasRunning = state.running;
+  state.running = false;
+  simStep();
+  if (wasRunning) state.running = true;
+}
+
+function resetSim() {
+  if (state.simTimer) clearInterval(state.simTimer);
+  pulses = [];
+  initSim();
+}
+
+function setTPM(v) { CFG.tpm = parseInt(v); logEvent('system', `TPM set to ${v}`); }
+
+function updateSpeed(v) {
+  CFG.speed = parseInt(v);
+  document.getElementById('speedVal').textContent = (v / 1000).toFixed(1) + 's';
+  scheduleSim();
+}
+
+function updateThresh(v) {
+  CFG.trustThreshold = parseFloat(v);
+  document.getElementById('threshVal').textContent = parseFloat(v).toFixed(2);
+}
+
+function updateDecay(v) {
+  CFG.trustDecay = parseFloat(v);
+  document.getElementById('decayVal').textContent = parseFloat(v).toFixed(2);
+}
+
+function updateAlpha(v) {
+  CFG.alpha = parseFloat(v);
+  document.getElementById('alphaVal').textContent = parseFloat(v).toFixed(2);
+}
+
+function updateBeta(v) {
+  CFG.beta = parseInt(v);
+  document.getElementById('betaVal').textContent = v;
+}
+
+function updateUI() {
+  computeMetrics();
+}
+
+// ============================================================
+// START
+// ============================================================
+
+initSim();
+logEvent('system', 'IOTBSM Agentic Trust Simulation initialized');
+logEvent('system', 'Per-request claim model active — agents act across org boundaries');
+</script>
+</body>
+</html>
