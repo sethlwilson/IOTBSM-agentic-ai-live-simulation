@@ -514,7 +514,7 @@
         <div class="metric-card">
           <div class="metric-label">Info Availability</div>
           <div class="metric-value ia" id="iaVal">—</div>
-          <div class="metric-sub" id="iaSub">% of facts shared</div>
+          <div class="metric-sub" id="iaSub">% of grants that delivered needed fact</div>
           <div class="sparkline" id="iaSparkline"></div>
         </div>
         <div class="metric-card">
@@ -829,7 +829,7 @@ function addOrg(doLayout = true) {
   const count = 3 + Math.floor(Math.random() * 4);
   for (let i = 0; i < count; i++) {
     const agent = createAgent(org.id);
-    agent.factRequired = factIdCounter + Math.floor(Math.random() * 10);
+    agent.factRequired = Math.floor(Math.random() * 20);
     state.agents.push(agent);
     org.agents.push(agent.id);
   }
@@ -1035,12 +1035,11 @@ function simStep() {
     state.facts = state.facts.filter(f => !f.expired);
   });
 
-  // 3. Determine each agent's fact requirement
+  // 3. Determine each agent's fact requirement (0 is valid — do not use !factRequired)
   state.agents.forEach(agent => {
-    if (!agent.factRequired) {
+    if (agent.factRequired === undefined || agent.factRequired === null) {
       agent.factRequired = Math.floor(Math.random() * 20);
     }
-    // Check if satisfied
     agent.satisfied = agent.factsGenerated.some(f => f.value === agent.factRequired);
   });
 
@@ -1207,22 +1206,25 @@ function evaluateClaim(claim, requester, requestingOrg, targetOrg) {
     return result;
   }
 
-  // SUCCESS — fact flows
+  // SUCCESS — fact flows (IA = share events that delivered the *needed* fact)
   result.status = 'granted';
   state.totalShared++;
-  state.totalIntended++;
 
-  // Deliver fact
   const availFacts = state.facts.filter(f =>
     f.initiator !== requester.id && !f.expired &&
     state.agents.find(a => a.id === f.initiator)?.orgId === targetOrg.id
   );
 
   if (availFacts.length) {
-    const fact = availFacts[Math.floor(Math.random() * availFacts.length)];
+    const need = requester.factRequired;
+    const matching = availFacts.filter(f => f.value === need);
+    const fact = matching.length
+      ? matching[Math.floor(Math.random() * matching.length)]
+      : availFacts[Math.floor(Math.random() * availFacts.length)];
     fact.pedigree.push(requester.id);
-    if (fact.value === requester.factRequired) {
+    if (fact.value === need) {
       requester.satisfied = true;
+      state.totalIntended++;
       logEvent('ok', `✓ ${requester.name}@${requestingOrg.name} satisfied via ${targetOrg.name} [fact:${fact.value}]`);
     } else {
       logEvent('ok', `→ ${requester.name}@${requestingOrg.name}↔${targetOrg.name} [fact:${fact.value}]`);
