@@ -380,6 +380,55 @@
   }
 
   .paused .status-dot { animation: none; background: var(--warn); }
+
+  /* Canvas zoom / pan HUD */
+  .canvas-zoom-hud {
+    position: absolute;
+    bottom: 12px;
+    right: 12px;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+    z-index: 20;
+    pointer-events: auto;
+  }
+  .canvas-zoom-hud .zoom-row {
+    display: flex;
+    gap: 4px;
+    justify-content: flex-end;
+  }
+  .canvas-zoom-hud .btn-zoom {
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 700;
+    min-width: 32px;
+    padding: 6px 10px;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    cursor: pointer;
+    background: var(--surface);
+    color: var(--accent);
+    line-height: 1;
+  }
+  .canvas-zoom-hud .btn-zoom:hover {
+    border-color: var(--accent);
+    color: var(--text-bright);
+  }
+  .canvas-zoom-hud .zoom-label {
+    font-family: var(--mono);
+    font-size: 9px;
+    color: var(--text-dim);
+    text-align: right;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .canvas-zoom-hud .zoom-val {
+    color: var(--accent);
+    font-weight: 700;
+  }
+  #networkCanvas.pan-ready { cursor: grab; }
+  #networkCanvas.pan-active { cursor: grabbing; }
 </style>
 </head>
 <body>
@@ -421,6 +470,15 @@
         <div class="legend-item"><div class="legend-line" style="background:rgba(127,255,107,0.3)"></div>Agent Trust</div>
         <div class="legend-item"><div class="legend-line" style="background:rgba(255,60,92,0.6)"></div>Breach Path</div>
         <div class="legend-item"><div class="legend-dot" style="background:#ffcc00;border-radius:0"></div>Claim/Request</div>
+        <div class="legend-item" style="flex-basis:100%;margin-top:4px;color:var(--text-dim)">Scroll / pinch zoom · Alt+drag / middle-drag pan</div>
+      </div>
+    </div>
+    <div class="canvas-zoom-hud">
+      <div class="zoom-label">View <span class="zoom-val" id="zoomHudVal">100%</span></div>
+      <div class="zoom-row">
+        <button type="button" class="btn-zoom" id="zoomOutBtn" title="Zoom out">−</button>
+        <button type="button" class="btn-zoom" id="zoomResetBtn" title="Reset zoom & pan">⊙</button>
+        <button type="button" class="btn-zoom" id="zoomInBtn" title="Zoom in">+</button>
       </div>
     </div>
   </div>
@@ -556,6 +614,55 @@ window.addEventListener('resize', () => { resizeCanvas(); layoutOrgs(); });
 resizeCanvas();
 
 // ============================================================
+// VIEW — pan & zoom (graph in world space; transform to canvas)
+// ============================================================
+const VIEW_ZOOM_MIN = 0.2;
+const VIEW_ZOOM_MAX = 5;
+let view = { zoom: 1, panX: 0, panY: 0 };
+let isPanning = false;
+let panPointer = { startClientX: 0, startClientY: 0, startPanX: 0, startPanY: 0 };
+
+function screenToWorld(sx, sy) {
+  return {
+    x: (sx - view.panX) / view.zoom,
+    y: (sy - view.panY) / view.zoom
+  };
+}
+
+function resetView() {
+  view.zoom = 1;
+  view.panX = 0;
+  view.panY = 0;
+}
+
+function zoomAtScreen(sx, sy, factor) {
+  const worldX = (sx - view.panX) / view.zoom;
+  const worldY = (sy - view.panY) / view.zoom;
+  let z = view.zoom * factor;
+  z = Math.min(VIEW_ZOOM_MAX, Math.max(VIEW_ZOOM_MIN, z));
+  view.panX = sx - worldX * z;
+  view.panY = sy - worldY * z;
+  view.zoom = z;
+}
+
+function zoomFromCenter(factor) {
+  if (!W || !H) return;
+  zoomAtScreen(W / 2, H / 2, factor);
+}
+
+function updateZoomHud() {
+  const el = document.getElementById('zoomHudVal');
+  if (el) el.textContent = Math.round(view.zoom * 100) + '%';
+}
+
+function canvasPointerCoords(e) {
+  const rect = canvas.getBoundingClientRect();
+  const sx = (e.clientX - rect.left) * (canvas.width / rect.width);
+  const sy = (e.clientY - rect.top) * (canvas.height / rect.height);
+  return { x: sx, y: sy };
+}
+
+// ============================================================
 // DATA STRUCTURES
 // ============================================================
 
@@ -618,6 +725,8 @@ function getAgent(id) { return state.agents.find(a => a.id === id); }
 // ============================================================
 
 function initSim() {
+  resetView();
+
   state = {
     cycle: 0, orgs: [], agents: [], facts: [],
     requests: [], iaHistory: [], smHistory: [],
@@ -1243,7 +1352,15 @@ function renderLoop() {
   ctx.fillStyle = '#080c14';
   ctx.fillRect(0, 0, W, H);
 
-  if (!state.orgs.length) { requestAnimationFrame(renderLoop); return; }
+  if (!state.orgs.length) {
+    updateZoomHud();
+    requestAnimationFrame(renderLoop);
+    return;
+  }
+
+  ctx.save();
+  ctx.translate(view.panX, view.panY);
+  ctx.scale(view.zoom, view.zoom);
 
   // Draw inter-org trust edges
   state.orgs.forEach(om => {
@@ -1433,6 +1550,10 @@ function renderLoop() {
     }
   });
 
+  ctx.restore();
+
+  updateZoomHud();
+
   // Overlay info
   document.getElementById('overlayInfo').innerHTML =
     `<span style="color:var(--text-dim)">orgs:</span> <span style="color:var(--text)">${state.orgs.length}</span>&nbsp;
@@ -1444,14 +1565,83 @@ function renderLoop() {
 }
 
 // ============================================================
-// CANVAS MOUSE HOVER (Tooltip)
+// CANVAS — wheel zoom, pan, hover tooltips
 // ============================================================
 
+function wheelDeltaToPixels(e) {
+  if (e.deltaMode === WheelEvent.DOM_DELTA_LINE) return e.deltaY * 16;
+  if (e.deltaMode === WheelEvent.DOM_DELTA_PAGE) return e.deltaY * (canvas.clientHeight || 600);
+  return e.deltaY;
+}
+
+canvas.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  const p = canvasPointerCoords(e);
+  const dy = wheelDeltaToPixels(e);
+  let factor;
+  if (e.ctrlKey) {
+    // Trackpad pinch-to-zoom (Chrome, Edge, Safari, Firefox set ctrlKey on pinch)
+    factor = Math.exp(-dy * 0.002);
+    factor = Math.min(1.2, Math.max(1 / 1.2, factor));
+  } else {
+    factor = dy > 0 ? 0.92 : 1 / 0.92;
+  }
+  zoomAtScreen(p.x, p.y, factor);
+}, { passive: false });
+
+canvas.addEventListener('mousedown', (e) => {
+  if (e.button === 1 || (e.button === 0 && e.altKey)) {
+    e.preventDefault();
+    isPanning = true;
+    panPointer = {
+      startClientX: e.clientX,
+      startClientY: e.clientY,
+      startPanX: view.panX,
+      startPanY: view.panY
+    };
+    canvas.classList.add('pan-active');
+    canvas.classList.remove('pan-ready');
+  }
+});
+
+window.addEventListener('mouseup', () => {
+  if (isPanning) {
+    isPanning = false;
+    canvas.classList.remove('pan-active');
+  }
+});
+
+document.getElementById('zoomInBtn').addEventListener('click', () => {
+  zoomFromCenter(1.15);
+});
+document.getElementById('zoomOutBtn').addEventListener('click', () => {
+  zoomFromCenter(1 / 1.15);
+});
+document.getElementById('zoomResetBtn').addEventListener('click', () => {
+  resetView();
+  updateZoomHud();
+});
+
 canvas.addEventListener('mousemove', (e) => {
-  const rect = canvas.getBoundingClientRect();
-  const mx = e.clientX - rect.left;
-  const my = e.clientY - rect.top;
+  const p = canvasPointerCoords(e);
+  const mx = p.x;
+  const my = p.y;
   const tip = document.getElementById('tooltip');
+
+  canvas.classList.toggle('pan-ready', e.altKey && !isPanning);
+
+  if (isPanning) {
+    view.panX = panPointer.startPanX + (e.clientX - panPointer.startClientX);
+    view.panY = panPointer.startPanY + (e.clientY - panPointer.startClientY);
+    hoveredEntity = null;
+    tip.style.display = 'none';
+    return;
+  }
+
+  const wx = (mx - view.panX) / view.zoom;
+  const wy = (my - view.panY) / view.zoom;
+  const hitAgent = 12 / view.zoom;
+  const hitOrg = 35 / view.zoom;
 
   hoveredEntity = null;
 
@@ -1460,8 +1650,8 @@ canvas.addEventListener('mousemove', (e) => {
     if (!org) continue;
     const ax = org.x + agent.offsetX;
     const ay = org.y + agent.offsetY;
-    const dist = Math.hypot(mx - ax, my - ay);
-    if (dist < 12) {
+    const dist = Math.hypot(wx - ax, wy - ay);
+    if (dist < hitAgent) {
       hoveredEntity = agent;
       const avgTrust = Object.values(agent.trustIn).reduce((s, v) => s + v, 0)
         / Math.max(1, Object.values(agent.trustIn).length);
@@ -1482,8 +1672,8 @@ canvas.addEventListener('mousemove', (e) => {
   }
 
   for (const org of state.orgs) {
-    const dist = Math.hypot(mx - org.x, my - org.y);
-    if (dist < 35) {
+    const dist = Math.hypot(wx - org.x, wy - org.y);
+    if (dist < hitOrg) {
       const avgTrust = Object.values(org.trustIn).reduce((s, t) => s + t.value, 0)
         / Math.max(1, Object.values(org.trustIn).length);
       tip.style.display = 'block';
@@ -1506,6 +1696,11 @@ canvas.addEventListener('mousemove', (e) => {
 canvas.addEventListener('mouseleave', () => {
   document.getElementById('tooltip').style.display = 'none';
   hoveredEntity = null;
+  canvas.classList.remove('pan-ready');
+});
+
+canvas.addEventListener('auxclick', (e) => {
+  if (e.button === 1) e.preventDefault();
 });
 
 // ============================================================
