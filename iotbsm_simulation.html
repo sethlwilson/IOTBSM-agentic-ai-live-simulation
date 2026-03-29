@@ -451,6 +451,7 @@
       <option value="2">TPM-2 (Uniform)</option>
       <option value="3">TPM-3 (Initiator)</option>
     </select>
+    <button class="btn" type="button" id="soundToggle" onclick="toggleSound()" title="Toggle sound effects">🔊</button>
     <button class="btn danger" onclick="resetSim()">RESET</button>
   </div>
 </header>
@@ -1080,6 +1081,7 @@ function evaluateClaim(claim, requester, requestingOrg, targetOrg) {
     result.status = 'denied';
     result.reason = `Insufficient agent→BS trust (${agentTrustInBS.toFixed(2)})`;
     applyTPM(claim, result, requester, myBS, null, null, 'agent-bs');
+    playSoundDenied();
     return result;
   }
   result.path.push(myBS.id);
@@ -1099,6 +1101,7 @@ function evaluateClaim(claim, requester, requestingOrg, targetOrg) {
     result.status = 'denied';
     result.reason = `BS-BS trust too low (${instantBSTrust.toFixed(2)})`;
     applyTPM(claim, result, requester, myBS, theirBS, targetOrg, 'bs-bs');
+    playSoundDenied();
     return result;
   }
   result.path.push(theirBS.id);
@@ -1108,14 +1111,18 @@ function evaluateClaim(claim, requester, requestingOrg, targetOrg) {
     a.orgId === targetOrg.id && !a.isBoundarySpanner
   );
   if (!targetAgents.length) {
-    result.status = 'denied'; result.reason = 'No target agents'; return result;
+    result.status = 'denied'; result.reason = 'No target agents';
+    playSoundDenied();
+    return result;
   }
   const targetAgent = targetAgents[Math.floor(Math.random() * targetAgents.length)];
   result.path.push(targetAgent.id);
 
   // ISP4: Check recipient willingness
   if (targetAgent.satisfied) {
-    result.status = 'denied'; result.reason = 'Target already satisfied'; return result;
+    result.status = 'denied'; result.reason = 'Target already satisfied';
+    playSoundDenied();
+    return result;
   }
 
   // Check inter-org trust threshold for fact transfer
@@ -1149,6 +1156,8 @@ function evaluateClaim(claim, requester, requestingOrg, targetOrg) {
     } else {
       logEvent('ok', `→ ${requester.name}@${requestingOrg.name}↔${targetOrg.name} [fact:${fact.value}]`);
     }
+  } else {
+    playSoundGrantTransfer();
   }
 
   // Update inter-org interaction count
@@ -1704,10 +1713,200 @@ canvas.addEventListener('auxclick', (e) => {
 });
 
 // ============================================================
+// SOUND (Web Audio API — no external assets)
+// ============================================================
+let soundEnabled = true;
+let audioCtx = null;
+let soundMaster = null;
+
+function ensureAudio() {
+  if (audioCtx) return audioCtx;
+  const AC = window.AudioContext || window.webkitAudioContext;
+  if (!AC) return null;
+  audioCtx = new AC();
+  soundMaster = audioCtx.createGain();
+  soundMaster.gain.value = 0.22;
+  soundMaster.connect(audioCtx.destination);
+  return audioCtx;
+}
+
+function resumeAudioContext() {
+  const ctx = ensureAudio();
+  if (ctx && ctx.state === 'suspended') ctx.resume();
+}
+
+function toggleSound() {
+  soundEnabled = !soundEnabled;
+  const btn = document.getElementById('soundToggle');
+  if (btn) {
+    btn.textContent = soundEnabled ? '🔊' : '🔈';
+    btn.title = soundEnabled ? 'Mute sound effects' : 'Unmute sound effects';
+    btn.style.opacity = soundEnabled ? '1' : '0.5';
+  }
+  if (soundEnabled) resumeAudioContext();
+}
+
+document.body.addEventListener('click', () => resumeAudioContext(), { capture: true, once: false });
+
+function soundChime(freq, dur, type = 'sine', peak = 0.45, t0 = null) {
+  if (!soundEnabled) return;
+  const ctx = ensureAudio();
+  if (!ctx || !soundMaster) return;
+  const t = t0 ?? ctx.currentTime;
+  const osc = ctx.createOscillator();
+  const g = ctx.createGain();
+  osc.type = type;
+  osc.frequency.setValueAtTime(freq, t);
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(peak, t + 0.012);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  osc.connect(g);
+  g.connect(soundMaster);
+  osc.start(t);
+  osc.stop(t + dur + 0.02);
+}
+
+function soundSweep(freqStart, freqEnd, dur, type = 'triangle', peak = 0.35) {
+  if (!soundEnabled) return;
+  const ctx = ensureAudio();
+  if (!ctx || !soundMaster) return;
+  const t = ctx.currentTime;
+  const osc = ctx.createOscillator();
+  const g = ctx.createGain();
+  osc.type = type;
+  osc.frequency.setValueAtTime(freqStart, t);
+  osc.frequency.exponentialRampToValueAtTime(Math.max(40, freqEnd), t + dur);
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(peak, t + 0.02);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  osc.connect(g);
+  g.connect(soundMaster);
+  osc.start(t);
+  osc.stop(t + dur + 0.03);
+}
+
+function soundNoiseBurst(dur, peak = 0.12) {
+  if (!soundEnabled) return;
+  const ctx = ensureAudio();
+  if (!ctx || !soundMaster) return;
+  const t = ctx.currentTime;
+  const len = Math.ceil(ctx.sampleRate * dur);
+  const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+  const d = buf.getChannelData(0);
+  for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / len);
+  const src = ctx.createBufferSource();
+  src.buffer = buf;
+  const g = ctx.createGain();
+  const f = ctx.createBiquadFilter();
+  f.type = 'lowpass';
+  f.frequency.value = 900;
+  g.gain.setValueAtTime(peak, t);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  src.connect(f);
+  f.connect(g);
+  g.connect(soundMaster);
+  src.start(t);
+  src.stop(t + dur + 0.01);
+}
+
+function playSoundGrantSatisfied() {
+  resumeAudioContext();
+  const ctx = ensureAudio();
+  if (!ctx) return;
+  const t = ctx.currentTime;
+  soundChime(523.25, 0.09, 'sine', 0.42, t);
+  soundChime(659.25, 0.1, 'sine', 0.38, t + 0.07);
+  soundChime(783.99, 0.14, 'sine', 0.32, t + 0.15);
+}
+
+function playSoundGrantTransfer() {
+  resumeAudioContext();
+  soundChime(440, 0.07, 'triangle', 0.28);
+}
+
+function playSoundDenied() {
+  resumeAudioContext();
+  soundChime(196, 0.11, 'square', 0.2);
+}
+
+function playSoundBreach() {
+  resumeAudioContext();
+  soundSweep(280, 90, 0.28, 'sawtooth', 0.32);
+  setTimeout(() => { if (soundEnabled) soundNoiseBurst(0.08, 0.1); }, 40);
+}
+
+function playSoundJoin() {
+  resumeAudioContext();
+  soundSweep(311, 523, 0.22, 'sine', 0.35);
+}
+
+function playSoundLeave() {
+  resumeAudioContext();
+  soundSweep(392, 220, 0.2, 'triangle', 0.28);
+}
+
+function playSoundBsElection() {
+  resumeAudioContext();
+  const ctx = ensureAudio();
+  if (!ctx) return;
+  const t = ctx.currentTime;
+  soundChime(1250, 0.04, 'sine', 0.25, t);
+  soundChime(880, 0.035, 'sine', 0.18, t + 0.04);
+}
+
+function playSoundTpm() {
+  resumeAudioContext();
+  soundChime(660, 0.035, 'square', 0.15);
+}
+
+function playSoundClaim() {
+  resumeAudioContext();
+  soundChime(990, 0.055, 'sine', 0.3);
+}
+
+function playSoundWarn() {
+  resumeAudioContext();
+  soundChime(155, 0.16, 'triangle', 0.22);
+}
+
+function playLogSound(type, msg) {
+  if (!soundEnabled) return;
+  switch (type) {
+    case 'ok':
+      if (msg.includes('✓')) playSoundGrantSatisfied();
+      else playSoundGrantTransfer();
+      break;
+    case 'breach':
+      if (msg.includes('No BS')) playSoundDenied();
+      else playSoundBreach();
+      break;
+    case 'join':
+      playSoundJoin();
+      break;
+    case 'leave':
+      playSoundLeave();
+      break;
+    case 'claim':
+      playSoundClaim();
+      break;
+    case 'warn':
+      playSoundWarn();
+      break;
+    case 'system':
+      if (msg.includes('BS election')) playSoundBsElection();
+      else if (msg.includes('TPM set')) playSoundTpm();
+      break;
+    default:
+      break;
+  }
+}
+
+// ============================================================
 // EVENT LOG
 // ============================================================
 
 function logEvent(type, msg) {
+  playLogSound(type, msg);
   const log = document.getElementById('logScroll');
   const entry = document.createElement('div');
   entry.className = 'log-entry';
