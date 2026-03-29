@@ -62,7 +62,7 @@ Sparklines show recent history of IA and SM. Definitions are aligned with the **
 - **PAUSE / RESUME**, **STEP** — timing control.
 - **+ ORG / − ORG** — add or remove the newest organization.
 - **FIRE REQUEST** — trigger one manual cross-org request.
-- **TPM-1 / 2 / 3** — **trust policy model** variants for how trust decays along a failed path (proportional, uniform, initiator-centric).
+- **TPM-1 / 2 / 3** — select the **trust policy model** (see [Trust Policy Models (TPM)](#trust-policy-models-tpm) below).
 - **RESET** — new random initial network (four organizations by default).
 
 **Simulation controls (sidebar)**
@@ -76,6 +76,54 @@ Sparklines show recent history of IA and SM. Definitions are aligned with the **
 | **BS Rate (β)** | Cycles between **boundary spanner re-elections**. |
 
 Fixed defaults in code also include the **fraction of agents elected as BS** and **fact expiration** (`CFG` object in `iotbsm_simulation.html`).
+
+## Trust Policy Models (TPM)
+
+The **Trust Policy Model** controls **how interpersonal trust values are reduced** after certain **failed** claims—when the simulation applies `applyTPM` in `iotbsm_simulation.html`. TPM does **not** run on every denial (for example, “no boundary spanners,” “no target agents,” and “target already satisfied” only log and pulse; they do **not** trigger TPM). It **does** run when:
+
+- **Agent → BS** trust is below the threshold (denied at the first hop).
+- **BS → BS** trust is below the threshold (denied at the cross-boundary hop).
+- An inter-organizational **breach** is recorded (trust too low for the fact-transfer policy after the path is otherwise viable).
+
+In all cases, `result.path` lists the **agent ids** along the evaluated chain (e.g. requester → own BS → peer BS → target agent). The sidebar **Trust decay** value is **`dec`** (`CFG.trustDecay`) in the formulas below. Any updated trust is **clamped at 0**; missing edges default to **0.5** before subtraction.
+
+### TPM-1 — Proportional (depth-weighted)
+
+For each hop on the path after the initiator, the **predecessor** agent’s trust in the **successor** is reduced by an amount that depends on **how deep** that hop is and **how long** the full path is:
+
+\[
+\text{update} = \text{dec}^{\,(\text{pathLength} - \text{depth} + 1)}
+\]
+
+where **depth** is the path index of the **successor** agent (1 for the first hop after the requester, 2 for the next, …). Because **`dec`** is typically **between 0 and 1**, **`dec` raised to a larger exponent is smaller**: the **first** hop uses exponent `pathLength`, the next `pathLength − 1`, and so on. So the **magnitude subtracted grows toward the far end of the path** (closer to the target / last hop), not the start. Longer paths also change those exponents relative to a short path. This is a compact “position-sensitive” rule for the demo, not a standard distance metric.
+
+### TPM-2 — Uniform
+
+For **each** edge along `result.path` (from agent \(i-1\) to agent \(i\)), the predecessor’s trust in the successor is reduced by the **same** amount:
+
+\[
+\text{newTrust} = \max\bigl(0,\; \text{oldTrust} - \text{dec}\bigr)
+\]
+
+Every hop on the path is treated **equally**; there is no extra weight for position or path length.
+
+### TPM-3 — Initiator-centric
+
+Only the **requesting agent** (initiator) updates their trust: for **every other** agent id on the path, the initiator’s trust **in that agent** is reduced by **`dec`**:
+
+\[
+\text{initiator.trustIn}[\text{path}[k]] \leftarrow \max\bigl(0,\; \cdots - \text{dec}\bigr),\quad k = 1,\ldots,\text{pathLength}-1
+\]
+
+Other agents’ trust matrices are **unchanged** by TPM-3. This models “the requester blames everyone on the failed chain equally from their own perspective.”
+
+### Breach and inter-organizational trust
+
+Independently of TPM-1/2/3, when `result.breach` is true (policy breach after BS routing), the **requesting organization’s** scalar trust toward the **target organization** is also reduced by **`dec × 0.5`** (lower bound 0). That adjustment is **in addition** to whichever TPM edge updates ran for the same event.
+
+### Relation to the paper
+
+The KER paper discusses **trust management policies** in the broader IOTBSM framework. These three TPMs are **illustrative implementations** for the browser demo so you can compare **localized vs. uniform vs. initiator-only** sanctioning after failure—not a verbatim transcription of a single numbered policy in the article.
 
 ## Files
 
