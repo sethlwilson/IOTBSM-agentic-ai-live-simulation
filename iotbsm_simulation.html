@@ -272,6 +272,28 @@
     display: flex; align-items: center; gap: 5px;
   }
 
+  .legend-item.legend-layer {
+    cursor: pointer;
+    border-radius: 3px;
+    padding: 4px 8px;
+    margin: -4px -8px;
+    transition: opacity 0.15s, background 0.15s;
+    outline: none;
+  }
+  .legend-item.legend-layer:hover {
+    background: rgba(0, 212, 255, 0.07);
+  }
+  .legend-item.legend-layer:focus-visible {
+    box-shadow: 0 0 0 1px var(--accent);
+  }
+  .legend-item.legend-layer.legend-off {
+    opacity: 0.4;
+  }
+  .legend-item.legend-layer.legend-off .legend-dot,
+  .legend-item.legend-layer.legend-off .legend-line {
+    filter: grayscale(0.5);
+  }
+
   .legend-dot {
     width: 8px; height: 8px; border-radius: 50%;
   }
@@ -464,14 +486,14 @@
       <div id="overlayInfo" style="line-height:2"></div>
     </div>
     <div style="position:absolute;bottom:12px;left:12px;">
-      <div class="legend">
-        <div class="legend-item"><div class="legend-dot" style="background:#2a9de0"></div>Agent</div>
-        <div class="legend-item"><div class="legend-dot" style="background:#ff6b35"></div>Boundary Spanner</div>
-        <div class="legend-item"><div class="legend-line" style="background:rgba(0,212,255,0.4)"></div>Inter-Org Trust</div>
-        <div class="legend-item"><div class="legend-line" style="background:rgba(127,255,107,0.3)"></div>Agent Trust</div>
-        <div class="legend-item"><div class="legend-line" style="background:rgba(255,60,92,0.6)"></div>Breach Path</div>
-        <div class="legend-item"><div class="legend-dot" style="background:#ffcc00;border-radius:0"></div>Claim/Request</div>
-        <div class="legend-item" style="flex-basis:100%;margin-top:4px;color:var(--text-dim)">Scroll / pinch zoom · Alt+drag / middle-drag pan</div>
+      <div class="legend" id="graphLegend">
+        <div class="legend-item legend-layer" data-layer="agents" role="button" tabindex="0" aria-pressed="true" title="Show or hide agents (click)"><div class="legend-dot" style="background:#2a9de0"></div>Agent</div>
+        <div class="legend-item legend-layer" data-layer="bs" role="button" tabindex="0" aria-pressed="true" title="Show or hide boundary spanners (click)"><div class="legend-dot" style="background:#ff6b35"></div>Boundary Spanner</div>
+        <div class="legend-item legend-layer" data-layer="interOrg" role="button" tabindex="0" aria-pressed="true" title="Show or hide inter-org trust links (click)"><div class="legend-line" style="background:rgba(0,212,255,0.4)"></div>Inter-Org Trust</div>
+        <div class="legend-item legend-layer" data-layer="agentTrust" role="button" tabindex="0" aria-pressed="true" title="Show or hide intra-org trust links (click)"><div class="legend-line" style="background:rgba(127,255,107,0.3)"></div>Agent Trust</div>
+        <div class="legend-item legend-layer" data-layer="breach" role="button" tabindex="0" aria-pressed="true" title="Show or hide denied (amber) and breach (red) paths (click)"><div class="legend-line" style="background:linear-gradient(90deg,#ff9a3c,#ff3b5c)"></div>Denied / Breach</div>
+        <div class="legend-item legend-layer" data-layer="claim" role="button" tabindex="0" aria-pressed="true" title="Show or hide successful request paths (click)"><div class="legend-dot" style="background:#ffcc00;border-radius:0"></div>Claim/Request</div>
+        <div class="legend-item" style="flex-basis:100%;margin-top:4px;color:var(--text-dim)">Pulses: gold = granted · amber = denied · red = breach · Click legend to toggle · Scroll/pinch zoom · Alt+drag pan</div>
       </div>
     </div>
     <div class="canvas-zoom-hud">
@@ -661,6 +683,44 @@ function canvasPointerCoords(e) {
   const sx = (e.clientX - rect.left) * (canvas.width / rect.width);
   const sy = (e.clientY - rect.top) * (canvas.height / rect.height);
   return { x: sx, y: sy };
+}
+
+// ============================================================
+// GRAPH LAYER VISIBILITY (legend toggles)
+// ============================================================
+const graphLayers = {
+  agents: true,
+  bs: true,
+  interOrg: true,
+  agentTrust: true,
+  breach: true,
+  claim: true,
+};
+
+function toggleGraphLayer(key) {
+  if (!Object.prototype.hasOwnProperty.call(graphLayers, key)) return;
+  graphLayers[key] = !graphLayers[key];
+  const el = document.querySelector(`#graphLegend [data-layer="${key}"]`);
+  if (el) {
+    el.classList.toggle('legend-off', !graphLayers[key]);
+    el.setAttribute('aria-pressed', graphLayers[key] ? 'true' : 'false');
+  }
+}
+
+function initLegendToggles() {
+  const leg = document.getElementById('graphLegend');
+  if (!leg) return;
+  leg.addEventListener('click', (e) => {
+    const row = e.target.closest('[data-layer]');
+    if (!row) return;
+    toggleGraphLayer(row.dataset.layer);
+  });
+  leg.addEventListener('keydown', (e) => {
+    const row = e.target.closest('[data-layer]');
+    if (!row || (e.key !== 'Enter' && e.key !== ' ')) return;
+    e.preventDefault();
+    toggleGraphLayer(row.dataset.layer);
+  });
 }
 
 // ============================================================
@@ -1068,6 +1128,12 @@ function evaluateClaim(claim, requester, requestingOrg, targetOrg) {
     result.status = 'denied';
     result.reason = 'No boundary spanners available';
     logEvent('breach', `No BS: ${requestingOrg.name} → ${targetOrg.name}`);
+    if (!reqBS.length) {
+      addRequestPulse([requester, pulseOrgHub(requestingOrg.id)], 'deny');
+    } else {
+      const bridge = reqBS[0];
+      addRequestPulse([requester, bridge, pulseOrgHub(targetOrg.id)], 'deny');
+    }
     return result;
   }
 
@@ -1082,6 +1148,7 @@ function evaluateClaim(claim, requester, requestingOrg, targetOrg) {
     result.reason = `Insufficient agent→BS trust (${agentTrustInBS.toFixed(2)})`;
     applyTPM(claim, result, requester, myBS, null, null, 'agent-bs');
     playSoundDenied();
+    addRequestPulse([requester, myBS], 'deny');
     return result;
   }
   result.path.push(myBS.id);
@@ -1102,6 +1169,7 @@ function evaluateClaim(claim, requester, requestingOrg, targetOrg) {
     result.reason = `BS-BS trust too low (${instantBSTrust.toFixed(2)})`;
     applyTPM(claim, result, requester, myBS, theirBS, targetOrg, 'bs-bs');
     playSoundDenied();
+    addRequestPulse([requester, myBS, theirBS], 'deny');
     return result;
   }
   result.path.push(theirBS.id);
@@ -1113,6 +1181,7 @@ function evaluateClaim(claim, requester, requestingOrg, targetOrg) {
   if (!targetAgents.length) {
     result.status = 'denied'; result.reason = 'No target agents';
     playSoundDenied();
+    addRequestPulse([requester, myBS, theirBS], 'deny');
     return result;
   }
   const targetAgent = targetAgents[Math.floor(Math.random() * targetAgents.length)];
@@ -1122,6 +1191,7 @@ function evaluateClaim(claim, requester, requestingOrg, targetOrg) {
   if (targetAgent.satisfied) {
     result.status = 'denied'; result.reason = 'Target already satisfied';
     playSoundDenied();
+    addRequestPulse([requester, myBS, theirBS, targetAgent], 'deny');
     return result;
   }
 
@@ -1133,6 +1203,7 @@ function evaluateClaim(claim, requester, requestingOrg, targetOrg) {
     state.totalBreaches++;
     applyTPM(claim, result, requester, myBS, theirBS, targetOrg, 'inter-org');
     logEvent('breach', `BREACH ${requestingOrg.name}→${targetOrg.name} [T:${interOrgTrust.toFixed(2)}]`);
+    addRequestPulse([requester, myBS, theirBS, targetAgent], 'breach');
     return result;
   }
 
@@ -1164,8 +1235,7 @@ function evaluateClaim(claim, requester, requestingOrg, targetOrg) {
   if (!requestingOrg.interactionCount[targetOrg.id]) requestingOrg.interactionCount[targetOrg.id] = 0;
   requestingOrg.interactionCount[targetOrg.id]++;
 
-  // Add visual request pulse
-  addPulse(requester, myBS, theirBS, targetAgent, result.status === 'granted');
+  addRequestPulse([requester, myBS, theirBS, targetAgent], 'grant');
 
   return result;
 }
@@ -1326,14 +1396,23 @@ function renderOrgList() {
 
 let pulses = [];
 
-function addPulse(agentA, bsA, bsB, agentB, success) {
-  if (!agentA || !bsA || !bsB || !agentB) return;
+/** Org-center waypoint for pulses (not a real agent). Renders at org.x + offsetX. */
+function pulseOrgHub(orgId) {
+  return { orgId, offsetX: 0, offsetY: 0, _pulseHub: true };
+}
+
+/** Animated path: 2+ waypoints. outcome: grant (gold), deny (amber), breach (red). */
+function addRequestPulse(path, outcome) {
+  if (!path || path.length < 2) return;
+  const clean = path.filter(Boolean);
+  if (clean.length < 2) return;
+  if (outcome !== 'grant' && outcome !== 'deny' && outcome !== 'breach') outcome = 'deny';
   pulses.push({
-    path: [agentA, bsA, bsB, agentB],
-    progress: 0,
-    success,
+    path: clean,
+    outcome,
+    success: outcome === 'grant',
     created: Date.now(),
-    duration: 1200,
+    duration: Math.min(2200, 700 + clean.length * 280),
   });
 }
 
@@ -1371,66 +1450,71 @@ function renderLoop() {
   ctx.translate(view.panX, view.panY);
   ctx.scale(view.zoom, view.zoom);
 
-  // Draw inter-org trust edges
-  state.orgs.forEach(om => {
-    state.orgs.forEach(on => {
-      if (om.id >= on.id) return;
-      const t = om.trustIn[on.id]?.value ?? 0;
-      ctx.beginPath();
-      ctx.moveTo(om.x, om.y);
-      ctx.lineTo(on.x, on.y);
-      ctx.strokeStyle = `rgba(0,212,255,${t * 0.5})`;
-      ctx.lineWidth = 1 + t * 3;
-      ctx.setLineDash([6, 6]);
-      ctx.stroke();
-      ctx.setLineDash([]);
-
-      // Trust label
-      const mx = (om.x + on.x) / 2, my = (om.y + on.y) / 2;
-      ctx.fillStyle = `rgba(0,212,255,${0.4 + t * 0.4})`;
-      ctx.font = '9px Space Mono, monospace';
-      ctx.textAlign = 'center';
-      ctx.fillText(t.toFixed(2), mx, my - 5);
-    });
-  });
-
-  // Draw agent trust edges (intra-org)
-  state.orgs.forEach(org => {
-    const agents = state.agents.filter(a => a.orgId === org.id);
-    agents.forEach(a => {
-      agents.forEach(b => {
-        if (a.id >= b.id) return;
-        const t = a.trustIn[b.id] ?? 0;
-        if (t < 0.1) return;
-        const ax = org.x + a.offsetX, ay = org.y + a.offsetY;
-        const bx = org.x + b.offsetX, by = org.y + b.offsetY;
+  // Draw inter-org trust edges (org centers + numeric labels)
+  if (graphLayers.interOrg) {
+    state.orgs.forEach(om => {
+      state.orgs.forEach(on => {
+        if (om.id >= on.id) return;
+        const t = om.trustIn[on.id]?.value ?? 0;
         ctx.beginPath();
-        ctx.moveTo(ax, ay); ctx.lineTo(bx, by);
-        ctx.strokeStyle = `rgba(127,255,107,${t * 0.25})`;
-        ctx.lineWidth = 0.5 + t;
+        ctx.moveTo(om.x, om.y);
+        ctx.lineTo(on.x, on.y);
+        ctx.strokeStyle = `rgba(0,212,255,${t * 0.5})`;
+        ctx.lineWidth = 1 + t * 3;
+        ctx.setLineDash([6, 6]);
         ctx.stroke();
+        ctx.setLineDash([]);
+
+        const mx = (om.x + on.x) / 2, my = (om.y + on.y) / 2;
+        ctx.fillStyle = `rgba(0,212,255,${0.4 + t * 0.4})`;
+        ctx.font = '9px Space Mono, monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText(t.toFixed(2), mx, my - 5);
       });
     });
-  });
+  }
 
-  // Draw BS-BS edges across orgs
-  state.agents.filter(a => a.isBoundarySpanner).forEach(bs => {
-    Object.entries(bs.trustIn).forEach(([tid, tv]) => {
-      const other = getAgent(parseInt(tid));
-      if (!other || !other.isBoundarySpanner || other.orgId === bs.orgId) return;
-      const orgA = getOrg(bs.orgId), orgB = getOrg(other.orgId);
-      if (!orgA || !orgB) return;
-      const ax = orgA.x + bs.offsetX, ay = orgA.y + bs.offsetY;
-      const bx = orgB.x + other.offsetX, by = orgB.y + other.offsetY;
-      ctx.beginPath();
-      ctx.moveTo(ax, ay); ctx.lineTo(bx, by);
-      ctx.strokeStyle = `rgba(255,107,53,${tv * 0.5})`;
-      ctx.lineWidth = 0.8 + tv * 1.5;
-      ctx.setLineDash([3, 4]);
-      ctx.stroke();
-      ctx.setLineDash([]);
+  // Draw agent trust edges (intra-org)
+  if (graphLayers.agentTrust) {
+    state.orgs.forEach(org => {
+      const agents = state.agents.filter(a => a.orgId === org.id);
+      agents.forEach(a => {
+        agents.forEach(b => {
+          if (a.id >= b.id) return;
+          const t = a.trustIn[b.id] ?? 0;
+          if (t < 0.1) return;
+          const ax = org.x + a.offsetX, ay = org.y + a.offsetY;
+          const bx = org.x + b.offsetX, by = org.y + b.offsetY;
+          ctx.beginPath();
+          ctx.moveTo(ax, ay); ctx.lineTo(bx, by);
+          ctx.strokeStyle = `rgba(127,255,107,${t * 0.25})`;
+          ctx.lineWidth = 0.5 + t;
+          ctx.stroke();
+        });
+      });
     });
-  });
+  }
+
+  // Draw BS-BS edges across orgs (inter-org channel)
+  if (graphLayers.interOrg) {
+    state.agents.filter(a => a.isBoundarySpanner).forEach(bs => {
+      Object.entries(bs.trustIn).forEach(([tid, tv]) => {
+        const other = getAgent(parseInt(tid));
+        if (!other || !other.isBoundarySpanner || other.orgId === bs.orgId) return;
+        const orgA = getOrg(bs.orgId), orgB = getOrg(other.orgId);
+        if (!orgA || !orgB) return;
+        const ax = orgA.x + bs.offsetX, ay = orgA.y + bs.offsetY;
+        const bx = orgB.x + other.offsetX, by = orgB.y + other.offsetY;
+        ctx.beginPath();
+        ctx.moveTo(ax, ay); ctx.lineTo(bx, by);
+        ctx.strokeStyle = `rgba(255,107,53,${tv * 0.5})`;
+        ctx.lineWidth = 0.8 + tv * 1.5;
+        ctx.setLineDash([3, 4]);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      });
+    });
+  }
 
   // Draw org circles
   state.orgs.forEach(org => {
@@ -1462,9 +1546,12 @@ function renderLoop() {
 
     // Draw agents
     state.agents.filter(a => a.orgId === org.id).forEach(agent => {
+      const isBS = agent.isBoundarySpanner;
+      if (isBS && !graphLayers.bs) return;
+      if (!isBS && !graphLayers.agents) return;
+
       const ax = org.x + agent.offsetX;
       const ay = org.y + agent.offsetY;
-      const isBS = agent.isBoundarySpanner;
       const nodeR = isBS ? 8 : 5;
 
       // Node glow
@@ -1515,10 +1602,19 @@ function renderLoop() {
   const now = Date.now();
   pulses = pulses.filter(p => now - p.created < p.duration);
   pulses.forEach(pulse => {
+    const kind = pulse.outcome || (pulse.success === true ? 'grant' : 'deny');
+    if (kind === 'grant' && !graphLayers.claim) return;
+    if (kind !== 'grant' && !graphLayers.breach) return;
+
     const t = (now - pulse.created) / pulse.duration;
     const pathLen = pulse.path.length - 1;
-    const seg = Math.floor(t * pathLen);
+    if (pathLen < 1) return;
+    const seg = Math.min(Math.floor(t * pathLen), pathLen - 1);
     const segT = (t * pathLen) - seg;
+
+    const isGrant = kind === 'grant';
+    const isBreach = kind === 'breach';
+    const fade = Math.max(isGrant ? 0.38 : 0.3, (1 - t * 0.72) * (isGrant ? 1 : 0.95));
 
     for (let i = 0; i < Math.min(seg + 1, pathLen); i++) {
       const a = pulse.path[i], b = pulse.path[i + 1];
@@ -1528,7 +1624,7 @@ function renderLoop() {
       const ax = orgA.x + a.offsetX, ay = orgA.y + a.offsetY;
       const bx = orgB.x + b.offsetX, by = orgB.y + b.offsetY;
 
-      const alpha = i < seg ? 0.6 * (1 - t) : 0.9 * (1 - t);
+      const alpha = (i < seg ? 0.72 : 0.95) * fade;
       ctx.beginPath();
       ctx.moveTo(ax, ay);
       if (i === seg) {
@@ -1536,14 +1632,24 @@ function renderLoop() {
       } else {
         ctx.lineTo(bx, by);
       }
-      ctx.strokeStyle = pulse.success
-        ? `rgba(127,255,107,${alpha})`
-        : `rgba(255,59,92,${alpha})`;
-      ctx.lineWidth = 2.5;
+      if (isGrant) {
+        ctx.strokeStyle = `rgba(255,204,0,${alpha})`;
+        ctx.lineWidth = 3.2;
+        ctx.shadowColor = 'rgba(255,200,80,0.55)';
+        ctx.shadowBlur = 6;
+      } else if (isBreach) {
+        ctx.strokeStyle = `rgba(255,59,92,${alpha})`;
+        ctx.lineWidth = 2.8;
+        ctx.shadowBlur = 0;
+      } else {
+        ctx.strokeStyle = `rgba(255,154,60,${alpha})`;
+        ctx.lineWidth = 2.6;
+        ctx.shadowBlur = 0;
+      }
       ctx.stroke();
+      ctx.shadowBlur = 0;
     }
 
-    // Particle at current pos
     const seg2 = Math.min(seg, pathLen - 1);
     const a2 = pulse.path[seg2], b2 = pulse.path[seg2 + 1];
     if (a2 && b2) {
@@ -1552,9 +1658,18 @@ function renderLoop() {
         const px = orgA2.x + a2.offsetX + (orgB2.x + b2.offsetX - orgA2.x - a2.offsetX) * (t * pathLen - seg2);
         const py = orgA2.y + a2.offsetY + (orgB2.y + b2.offsetY - orgA2.y - a2.offsetY) * (t * pathLen - seg2);
         ctx.beginPath();
-        ctx.arc(px, py, 4, 0, Math.PI * 2);
-        ctx.fillStyle = pulse.success ? '#7fff6b' : '#ff3b5c';
+        ctx.arc(px, py, isGrant ? 5 : 4, 0, Math.PI * 2);
+        if (isGrant) {
+          ctx.fillStyle = '#ffcc00';
+          ctx.shadowColor = 'rgba(255,220,100,0.9)';
+          ctx.shadowBlur = 10;
+        } else if (isBreach) {
+          ctx.fillStyle = '#ff3b5c';
+        } else {
+          ctx.fillStyle = '#ff9a3c';
+        }
         ctx.fill();
+        ctx.shadowBlur = 0;
       }
     }
   });
@@ -1657,6 +1772,8 @@ canvas.addEventListener('mousemove', (e) => {
   for (const agent of state.agents) {
     const org = getOrg(agent.orgId);
     if (!org) continue;
+    if (agent.isBoundarySpanner && !graphLayers.bs) continue;
+    if (!agent.isBoundarySpanner && !graphLayers.agents) continue;
     const ax = org.x + agent.offsetX;
     const ay = org.y + agent.offsetY;
     const dist = Math.hypot(wx - ax, wy - ay);
@@ -1992,6 +2109,7 @@ function updateUI() {
 // START
 // ============================================================
 
+initLegendToggles();
 initSim();
 logEvent('system', 'IOTBSM Agentic Trust Simulation initialized');
 logEvent('system', 'Per-request claim model active — agents act across org boundaries');
