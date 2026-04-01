@@ -69,7 +69,7 @@ Sparklines show recent history of IA and SM. Definitions are aligned with the **
 
 | Control | Role |
 |---------|------|
-| **Speed** | Milliseconds between automatic cycles. |
+| **Speed** | Interval between automatic cycles (**25 ms–3 s**; lower = faster). Label shows `ms` under 1 s, seconds above. |
 | **Trust thresh** | Minimum trust for several gate checks (agent→BS, BS–BS, etc.). |
 | **Trust decay** | Magnitude of trust reduction when TPM fires on denied/breached claims. |
 | **BS Alpha (α)** | Blend of **inter-organizational** vs. **prior BS–BS** trust when instantiating cross-boundary trust (see code comment referencing the paper’s BS trust construction). |

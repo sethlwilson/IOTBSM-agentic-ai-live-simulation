@@ -541,8 +541,8 @@
       <div class="section-label">Simulation Controls</div>
       <div class="control-row">
         <span class="control-label">Speed</span>
-        <input type="range" id="speedSlider" min="200" max="3000" value="1200" step="100"
-          oninput="updateSpeed(this.value)">
+        <input type="range" id="speedSlider" min="25" max="3000" value="1200" step="25"
+          oninput="updateSpeed(this.value)" title="Interval between cycles (lower = faster)">
         <span class="range-val" id="speedVal">1.2s</span>
       </div>
       <div class="control-row">
@@ -2077,9 +2077,17 @@ function resetSim() {
 
 function setTPM(v) { CFG.tpm = parseInt(v); logEvent('system', `TPM set to ${v}`); }
 
+function formatSpeedLabel(ms) {
+  const n = parseInt(ms, 10);
+  if (n < 1000) return n + 'ms';
+  const s = n / 1000;
+  const rounded = Math.round(s * 10) / 10;
+  return (Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1)) + 's';
+}
+
 function updateSpeed(v) {
-  CFG.speed = parseInt(v);
-  document.getElementById('speedVal').textContent = (v / 1000).toFixed(1) + 's';
+  CFG.speed = Math.max(25, parseInt(v, 10) || 1200);
+  document.getElementById('speedVal').textContent = formatSpeedLabel(CFG.speed);
   scheduleSim();
 }
 
