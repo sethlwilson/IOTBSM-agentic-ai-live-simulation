@@ -2,13 +2,11 @@
 
 ![IOTBSM simulation: trust network canvas with organizations, agents, boundary spanners, metrics sidebar, and controls](docs/iotbsm-simulation-preview.png)
 
-Single-file, client-side simulation of ideas from the **Inter-organizational Trust-based Security Model** described in:
+Single-file, client-side simulation aligned with the **Inter-organizational Trust-based Security Model (IOTBSM)** in:
 
 - Hexmoor, H., Wilson, S., & Bhattaram, S. (2006). [*A theoretical inter-organizational trust-based security model*](https://doi.org/10.1017/S0269888906000932). *The Knowledge Engineering Review*, 21(2), 127–161.
 
-The paper develops **soft security** for open, distributed information-sharing settings: participants use **trust** (social control) rather than only “hard” barriers such as centralized authentication. It links **inter-personal** trust (including **boundary spanners**—organizational representatives or gatekeepers) with **inter-organizational** trust, and gives a calculus for trust dynamics and policies. Core outcome metrics in that line of work include **information availability (IA)** and **security measure (SM)**—roughly, how well needed information reaches legitimate parties versus how often security is breached (e.g., unintended disclosure).
-
-This repository is a **pedagogical, interactive visualization**: it is **not** a faithful reimplementation of every equation or algorithm in the article, but it **implements the same conceptual structure** (multi-organization network, intra-org trust edges, BS-mediated cross-org requests, inter-org trust evolution, TPM-style trust updates on failure) and adds an **agentic “per-request claim”** layer so each information request is evaluated along a path: agent → own boundary spanner → peer boundary spanner → target agent.
+The UI frames the run as **AI agents**, **BS-AI liaisons** (boundary-spanner agents), an **IOTBSM Figure 5–style cycle** (see comments in `iotbsm_simulation.html`), and **§4.8**-style **information availability (IA)** and **security measure (SM)** readouts. The implementation is **pedagogical**: it follows the paper’s structure (trust-gated sharing, BS-mediated cross-org flow, logistic inter-org trust, TPM on certain failures) but simplifies and extends it for the browser (e.g. sampled **share pulses**, optional **dynamic orgs**, optional **poison-pill** facts that erode trust as they propagate).
 
 ## Quick start
 
@@ -25,112 +23,126 @@ Then open `http://localhost:8080/iotbsm_simulation.html`.
 
 ## What you will see
 
-- **Organizations** as colored rings, each with several **agents** (dots) and a subset of **boundary spanners (BS)** (diamond nodes).
-- **Intra-organizational** trust as faint green edges between agents in the same org.
-- **Inter-organizational** trust as cyan dashed edges between org centers (strength encodes trust).
-- **BS–BS** links in orange for cross-boundary channels.
-- Animated **pulses** along grant/deny paths when requests are evaluated.
+- **Organizations** as colored rings; **AI agents** (dots) and **BS-AI** boundary spanners (diamonds).
+- **Intra-organizational** trust as faint green edges; **inter-organizational** trust as cyan links between org centers (with numeric labels); **BS–BS** links in orange.
+- **Animated pulses** (budget-limited per cycle): **white** = successful share hop, **amber** = denied cross-org hop (sampled), **red** = breach path from pedigree audit, **violet** = a **poison-pill** fact crossing a hop (same “Denied / Breach” legend layer). **Legend** rows toggle layers; hint text matches pulse colors.
+- **Zoom / pan**: scroll wheel, pinch (trackpad `ctrlKey` wheel), **+/−/⊙** HUD, **Alt+drag** or **middle-drag** to pan.
+- **Tooltips** on hover (agent/org). **Event log** for elections, org/agent churn (joins/leaves), breaches, TPM changes, etc.
+- **Web Audio** cues (header **🔊** / **🔈** to mute).
 
-Hover agents and organizations for tooltips (trust averages, fact requirement, BS role, etc.). The **event log** records joins, elections, grants, denials, and breaches.
+## Simulation cycle (Figure 5 style, high level)
 
-## Simulation loop (high level)
+Each **cycle** the engine:
 
-Each **cycle**:
+1. Optionally **re-elects BS-AI** every **β** cycles from intra-org **reliability**.
+2. Each non–BS-AI agent **generates one new fact** (values from a fixed-size warehouse); facts carry **pedigree** and **pathTo** maps for audit.
+3. **Intra-org sharing rounds**: agents attempt to pass holdings to peers in the same org when **trust ≥ threshold**, recipient **willing** (ISP4-style), and path bookkeeping allows it; deliveries go to **pending** then **inbox** after a **merge** step.
+4. **Cross-org BS-AI sharing**: BS-AI agents forward holdings peer-to-peer using **α-blended** BS–BS trust vs inter-org trust; failed hops can be **deny-pulsed** (sampled).
+5. The intra-org / merge pattern runs **multiple times** per cycle so facts can propagate in stages (see code block labeled Figure 5).
+6. **Satisfaction** is updated from **accessible values** (this cycle’s generation plus inbox / pending).
+7. **§4.8-style audit** (`auditPedigreesAndTPM`): for **current-cycle** facts, every non-initiator on the pedigree with a recorded path (length ≥ 2) is classified as **intended** or **unintended** receipt from `pathTrustEdgesOk`. **Unintended** cases increment SM, **apply TPM** along the path, and may emit a **breach** pulse (classification does not require the recipient to still be unsatisfied at cycle end).
+8. **Inter-org trust** updates via **equation (5)** with fixed **τ₀** per org pair (`tau0` stored at init).
+9. If **`CFG.dynamicNetwork`** is true (default), orgs may **join** or **leave** after warm-up using configurable probabilities and min/max org counts.
+10. If **`CFG.agentChurn`** is true (default), individual **AI agents** may **join** a random org (under **`maxAgentsPerOrg`**) or **leave** an org (keeping at least **`minAgentsPerOrg`** members) after warm-up. Header **AGENT CHURN** pauses/resumes this without affecting **ORG CHURN**. Facts that reference a removed agent are purged; BS-AI is re-elected after each change.
 
-1. On a schedule controlled by **β** (BS election period), **boundary spanners** are re-elected from intra-org **reliability** (direct and simplified indirect trust).
-2. Non-BS agents **generate facts** (from a small discrete “warehouse”); old facts **expire** after a fixed interval.
-3. Random **information requests** fire: an unsatisfied agent seeks a fact from another organization via a **claim** (requesting org, target org, fact id).
-4. A **claim** is accepted or rejected along: **agent → BS (trust threshold) → BS–BS (blended inter-org and interpersonal trust, weight α) → target**; some outcomes count as **breaches** when policy treats the exchange as insecure.
-5. **Inter-organizational trust** is updated using a **logistic growth** form (comments in code refer to the paper’s development of trust over interactions); **interaction counts** drive that growth.
-6. The network may **grow or shrink** (random org join/leave after warm-up) to illustrate scalability dynamics.
+Additional **CFG** knobs in code include **pulse budget per cycle**, **intra-org pulse sampling rate**, **cross-org deny pulse sampling rate**, and **join/leave probabilities** for agents.
+
+### Poison pill (trust cascade)
+
+Header **☠ POISON** injects a special fact at a random **non–BS-AI** agent. It propagates through the same sharing rules as ordinary facts. On **every successful hop**, the engine:
+
+- subtracts **`poisonHopDecay`** from the **directed** trust edge used for that hop;
+- subtracts **`poisonRippleIntra`** from **every** directed intra-org edge in each **affected** organization (sender’s org; on BS hops, both orgs);
+- on **cross-org BS** hops, subtracts **`poisonInterOrgDecay`** from **both** directions of the **org–org** τ involved;
+- subtracts **`poisonGlobalRipple`** from **every** org-pair τ (light network-wide stress so degradation spreads beyond the immediate path).
+
+Violet pulses draw on the **Denied / Breach** layer. Optional **`CFG.poisonRandomChance`** (default **0**) can trigger rare automatic injections after warm-up.
 
 ## Metrics (this implementation)
 
-| Metric | Meaning in the UI |
-|--------|-------------------|
-| **Information availability (IA)** | Percentage of **successful shares** that were **intended** (legitimate flow under the simulated policy), relative to all shares. |
-| **Security measure (SM)** | **Breaches** as a percentage of all shares—proxy for unintended or policy-violating disclosure in this toy model. |
-| **Cycle** | Simulation tick; subtitle shows cumulative **requests**. |
-| **Network** | Counts of organizations, non-BS agents, and boundary spanners. |
+The sidebar labels cite **§4.8**. Each cycle, `auditPedigreesAndTPM()` fills **per-cycle** `cycleIntended` and `cycleUnintended` (and `cycleTotalShared = intended + unintended`) from the pedigree audit only—**not** lifetime totals.
 
-Sparklines show recent history of IA and SM. Definitions are aligned with the **spirit** of the paper’s IA/SM (availability vs. breach pressure), simplified for the browser demo.
+Let **shared-class** (for a given cycle) be `cycleTotalShared`, where those counts come only from **non-initiator pedigree positions** on **current-cycle** facts with `pathTo[recipient]` length ≥ 2. **Intended** if `pathTrustEdgesOk` passes on that path, **unintended** otherwise (TPM + breach pulse may apply). Recipients are counted **even if** they end the cycle satisfied (e.g. their `factRequired` was also met by a new generation or another fact), so IA/SM are not silently zeroed when luck or extra shares mask “still need info” at audit time.
+
+**Display IA / SM** use a **rolling window** (last **15** cycles) of those counts: `sum(cycleIntended) / sum(cycleTotalShared) × 100` and the analogous ratio for unintended. That avoids the UI sitting at **0%** or **100%** almost every cycle when each tick only has **0–1** shared-class receipts (integer rounding of a single-cycle ratio).
+
+| Display | Formula |
+|--------|--------|
+| **Info Availability (IA)** | Over the rolling window: `round((Σ intended / Σ shared-class) × 100)`, capped at **100%**, when `Σ shared-class > 0`; else **0%**. |
+| **Security Measure (SM)** | Same window: `round((Σ unintended / Σ shared-class) × 100)`, capped at **100%**. |
+
+When the window sum of **shared-class** is 0, IA and SM show **0%**. Otherwise **IA + SM ≈ 100%** (rounding may show 99% / 101% combined; each is clamped to 100%).
+
+**Cycle** shows the simulation tick; its subtitle includes **`shared-class (this cycle)`** for the raw audit count on that tick only. **Network** shows org count, non-BS agents, and BS-AI count. **`cycleSatisfiedAgents`** is still computed for internal use but is **not** part of the audit ratio (mixing it with receipt counts was a bug that produced IA **above 100%**).
+
+Sparklines use the same rolling IA/SM values (stored as floats before rounding for bar height) on a **fixed 0–100%** vertical scale.
 
 ## Controls and parameters
 
 **Header**
 
-- **PAUSE / RESUME**, **STEP** — timing control.
-- **+ ORG / − ORG** — add or remove the newest organization.
-- **FIRE REQUEST** — trigger one manual cross-org request.
-- **TPM-1 / 2 / 3** — select the **trust policy model** (see [Trust Policy Models (TPM)](#trust-policy-models-tpm) below).
-- **RESET** — new random initial network (four organizations by default).
+- **PAUSE / RESUME**, **STEP** — run control.
+- **ORG CHURN** — pause/resume automatic org join/leave (manual **+ ORG / − ORG** still work).
+- **AGENT CHURN** — pause/resume agents randomly joining or leaving organizations.
+- **+ ORG / − ORG** — add or remove the newest organization (subject to min-org guard).
+- **TPM-1 / 2 / 3** — trust policy model (see below).
+- **☠ POISON** — inject a poison-pill fact at a random AI agent (see README).
+- **🔊** — toggle sound effects.
+- **RESET** — new run (four orgs by default, view reset).
+
+There is **no** separate “fire one request” button; sharing is **continuous** each cycle.
 
 **Simulation controls (sidebar)**
 
 | Control | Role |
 |---------|------|
-| **Speed** | Interval between automatic cycles (**25 ms–3 s**; lower = faster). Label shows `ms` under 1 s, seconds above. |
-| **Trust thresh** | Minimum trust for several gate checks (agent→BS, BS–BS, etc.). |
-| **Trust decay** | Magnitude of trust reduction when TPM fires on denied/breached claims. |
-| **BS Alpha (α)** | Blend of **inter-organizational** vs. **prior BS–BS** trust when instantiating cross-boundary trust (see code comment referencing the paper’s BS trust construction). |
-| **BS Rate (β)** | Cycles between **boundary spanner re-elections**. |
+| **Speed** | Milliseconds between automatic cycles (**200–3000**, step 100; lower = faster). |
+| **Trust thresh** | Minimum trust for intra-org delivery and for the BS–BS **blended** gate in cross-org sharing / path audit. |
+| **Trust decay** | **`dec`** in TPM formulas below. |
+| **BS Alpha (α)** | Weight of **inter-org** vs **prior BS–BS** trust in the blend for cross-org edges and path checks. |
+| **BS Rate (β)** | Cycles between **BS-AI re-elections**. |
 
-Fixed defaults in code also include the **fraction of agents elected as BS** and **fact expiration** (`CFG` object in `iotbsm_simulation.html`).
+Other defaults (BS fraction, fact expiration, dynamic-network probabilities, pulse budget, etc.) live on **`CFG`** in `iotbsm_simulation.html`.
 
 ## Trust Policy Models (TPM)
 
-The **Trust Policy Model** controls **how interpersonal trust values are reduced** after certain **failed** claims—when the simulation applies `applyTPM` in `iotbsm_simulation.html`. TPM does **not** run on every denial (for example, “no boundary spanners,” “no target agents,” and “target already satisfied” only log and pulse; they do **not** trigger TPM). It **does** run when:
+In this build, **`applyTPM` runs only from the pedigree audit**: when a receipt is classified **unintended** (trust along the recorded path fails the same tests as live sharing, and the recipient is still unsatisfied). It does **not** run on ordinary cross-org denials that never complete a delivery.
 
-- **Agent → BS** trust is below the threshold (denied at the first hop).
-- **BS → BS** trust is below the threshold (denied at the cross-boundary hop).
-- An inter-organizational **breach** is recorded (trust too low for the fact-transfer policy after the path is otherwise viable).
+`result.path` is the agent-id list from initiator to recipient. **`applyTPM` returns immediately** if the path has fewer than two nodes. **`dec`** is **Trust decay** (`CFG.trustDecay`). Updated trust is clamped to **≥ 0**; missing edges use **0.5** before subtraction.
 
-In all cases, `result.path` lists the **agent ids** along the evaluated chain (e.g. requester → own BS → peer BS → target agent). The sidebar **Trust decay** value is **`dec`** (`CFG.trustDecay`) in the formulas below. Any updated trust is **clamped at 0**; missing edges default to **0.5** before subtraction.
+### TPM-1 — Proportional
 
-### TPM-1 — Proportional (depth-weighted)
-
-For each hop on the path after the initiator, the **predecessor** agent’s trust in the **successor** is reduced by an amount that depends on **how deep** that hop is and **how long** the full path is:
+For each hop index `k = 1 … |path|−1` (edge from `path[k−1]` to `path[k]`), let `degJ = |path|−1` and `degK = k`. The predecessor’s trust in the successor is reduced by:
 
 \[
-\text{update} = \text{dec}^{\,(\text{pathLength} - \text{depth} + 1)}
+\text{update} = \text{dec}^{\,(\mathrm{degJ} - \mathrm{degK} + 1)}
 \]
 
-where **depth** is the path index of the **successor** agent (1 for the first hop after the requester, 2 for the next, …). Because **`dec`** is typically **between 0 and 1**, **`dec` raised to a larger exponent is smaller**: the **first** hop uses exponent `pathLength`, the next `pathLength − 1`, and so on. So the **magnitude subtracted grows toward the far end of the path** (closer to the target / last hop), not the start. Longer paths also change those exponents relative to a short path. This is a compact “position-sensitive” rule for the demo, not a standard distance metric.
+With **`dec` ∈ (0,1)`**, later hops on the path typically receive **larger** decrements than earlier ones.
 
 ### TPM-2 — Uniform
 
-For **each** edge along `result.path` (from agent \(i-1\) to agent \(i\)), the predecessor’s trust in the successor is reduced by the **same** amount:
-
-\[
-\text{newTrust} = \max\bigl(0,\; \text{oldTrust} - \text{dec}\bigr)
-\]
-
-Every hop on the path is treated **equally**; there is no extra weight for position or path length.
+Each edge on the path: subtract **`dec`** from the predecessor’s trust in the successor (same as before).
 
 ### TPM-3 — Initiator-centric
 
-Only the **requesting agent** (initiator) updates their trust: for **every other** agent id on the path, the initiator’s trust **in that agent** is reduced by **`dec`**:
+The **initiator** agent reduces trust in every other id on the path by **`dec`**; other agents’ matrices are unchanged.
 
-\[
-\text{initiator.trustIn}[\text{path}[k]] \leftarrow \max\bigl(0,\; \cdots - \text{dec}\bigr),\quad k = 1,\ldots,\text{pathLength}-1
-\]
+### Inter-org extra term
 
-Other agents’ trust matrices are **unchanged** by TPM-3. This models “the requester blames everyone on the failed chain equally from their own perspective.”
-
-### Breach and inter-organizational trust
-
-Independently of TPM-1/2/3, when `result.breach` is true (policy breach after BS routing), the **requesting organization’s** scalar trust toward the **target organization** is also reduced by **`dec × 0.5`** (lower bound 0). That adjustment is **in addition** to whichever TPM edge updates ran for the same event.
+If **`result.breach`** is true **and** `targetOrg` is passed, inter-org trust is also reduced by **`dec × 0.5`**. In the current audit call, **`targetOrg` is null**, so that branch does not run unless extended elsewhere.
 
 ### Relation to the paper
 
-The KER paper discusses **trust management policies** in the broader IOTBSM framework. These three TPMs are **illustrative implementations** for the browser demo so you can compare **localized vs. uniform vs. initiator-only** sanctioning after failure—not a verbatim transcription of a single numbered policy in the article.
+The KER paper discusses trust management in IOTBSM; these TPMs are **illustrative** for comparing sanctioning styles after **unintended receipt** in the audit—not a verbatim copy of one numbered policy.
 
 ## Files
 
 | File | Description |
 |------|-------------|
-| `iotbsm_simulation.html` | Styles, UI, canvas rendering, and the full simulation engine (plain JavaScript, no dependencies beyond Google Fonts). |
+| `iotbsm_simulation.html` | Styles, UI, canvas, zoom/pan, sound, and full simulation (plain JavaScript; Google Fonts only). |
+| `docs/iotbsm-simulation-preview.png` | Static screenshot for this README. |
 
 ## Disclaimer
 
-This is an **educational simulation**. Numeric behavior is chosen for clarity and stability in the browser, not for empirical calibration of real organizations or production security decisions.
+This is an **educational simulation**. Numbers are chosen for clarity and stability in the browser, not for calibrating real organizations or production security.

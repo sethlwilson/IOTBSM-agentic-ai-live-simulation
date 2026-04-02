@@ -458,16 +458,18 @@
 <header>
   <div>
     <h1>IOTBSM // Agentic Trust Network</h1>
-    <div class="subtitle">Inter-Org Trust-Based Security · Per-Request Claim Model · Dynamic Network</div>
+    <div class="subtitle">AI agents · BS-AI liaisons · IEOTBSM cycle · dynamic orgs & agents · share pulses</div>
   </div>
   <div class="header-controls">
     <span id="statusDot" class="status-dot"></span>
     <span id="statusLabel" style="font-family:var(--mono);font-size:10px;color:var(--text-dim);margin-right:8px;">RUNNING</span>
     <button class="btn" id="toggleBtn" onclick="toggleSim()">PAUSE</button>
     <button class="btn success" onclick="stepSim()">STEP</button>
+    <button class="btn active" type="button" id="orgChurnToggle" onclick="toggleOrgChurnPaused()" aria-pressed="true" title="Automatic org join/leave each cycle (click to pause)">ORG CHURN ON</button>
+    <button class="btn active" type="button" id="agentChurnToggle" onclick="toggleAgentChurnPaused()" aria-pressed="true" title="Agents join or leave orgs over time (click to pause)">AGENT CHURN ON</button>
     <button class="btn" onclick="addOrg()">+ ORG</button>
     <button class="btn danger" onclick="removeOrg()">− ORG</button>
-    <button class="btn" onclick="fireRequest()">FIRE REQUEST</button>
+    <button class="btn danger" type="button" id="poisonInjectBtn" onclick="injectPoisonPill()" title="Seed a poison-pill fact at a random AI agent; each share erodes trust across the network">☠ POISON</button>
     <select id="tpmSelect" onchange="setTPM(this.value)">
       <option value="1">TPM-1 (Proportional)</option>
       <option value="2">TPM-2 (Uniform)</option>
@@ -487,13 +489,14 @@
     </div>
     <div style="position:absolute;bottom:12px;left:12px;">
       <div class="legend" id="graphLegend">
-        <div class="legend-item legend-layer" data-layer="agents" role="button" tabindex="0" aria-pressed="true" title="Show or hide agents (click)"><div class="legend-dot" style="background:#2a9de0"></div>Agent</div>
-        <div class="legend-item legend-layer" data-layer="bs" role="button" tabindex="0" aria-pressed="true" title="Show or hide boundary spanners (click)"><div class="legend-dot" style="background:#ff6b35"></div>Boundary Spanner</div>
+        <div class="legend-item legend-layer" data-layer="agents" role="button" tabindex="0" aria-pressed="true" title="Show or hide AI agents (click)"><div class="legend-dot" style="background:#2a9de0"></div>AI agent</div>
+        <div class="legend-item legend-layer" data-layer="bs" role="button" tabindex="0" aria-pressed="true" title="Show or hide boundary-spanner AI agents (click)"><div class="legend-dot" style="background:#ff6b35"></div>BS-AI</div>
         <div class="legend-item legend-layer" data-layer="interOrg" role="button" tabindex="0" aria-pressed="true" title="Show or hide inter-org trust links (click)"><div class="legend-line" style="background:rgba(0,212,255,0.4)"></div>Inter-Org Trust</div>
         <div class="legend-item legend-layer" data-layer="agentTrust" role="button" tabindex="0" aria-pressed="true" title="Show or hide intra-org trust links (click)"><div class="legend-line" style="background:rgba(127,255,107,0.3)"></div>Agent Trust</div>
         <div class="legend-item legend-layer" data-layer="breach" role="button" tabindex="0" aria-pressed="true" title="Show or hide denied (amber) and breach (red) paths (click)"><div class="legend-line" style="background:linear-gradient(90deg,#ff9a3c,#ff3b5c)"></div>Denied / Breach</div>
-        <div class="legend-item legend-layer" data-layer="claim" role="button" tabindex="0" aria-pressed="true" title="Show or hide successful request paths (click)"><div class="legend-dot" style="background:#ffcc00;border-radius:0"></div>Claim/Request</div>
-        <div class="legend-item" style="flex-basis:100%;margin-top:4px;color:var(--text-dim)">Pulses: gold = granted · amber = denied · red = breach · Click legend to toggle · Scroll/pinch zoom · Alt+drag pan</div>
+        <div class="legend-item legend-layer" data-layer="claim" role="button" tabindex="0" aria-pressed="true" title="Show or hide successful share paths (click)"><div class="legend-dot" style="background:#f0f4ff;border-radius:0;border:1px solid var(--border)"></div>Share path</div>
+        <div class="legend-item" style="flex-basis:100%;margin-top:6px;color:var(--text-dim);line-height:1.35">Trust on edges is shown as <span style="color:var(--text);font-family:Space Mono,monospace">a / b</span>: directed trust from the lower-id node to the higher-id node, then from the higher-id node to the lower-id node (same rule for org centers, intra-org agents, and BS-AI pairs).</div>
+        <div class="legend-item" style="flex-basis:100%;margin-top:4px;color:var(--text-dim)">Pulses: white = fact shared · amber = denied hop · red = breach path · violet = poison hop (Denied/Breach layer) · Scroll/pinch zoom · Drag to pan when zoomed, or Alt+drag / middle mouse</div>
       </div>
     </div>
     <div class="canvas-zoom-hud">
@@ -514,19 +517,19 @@
         <div class="metric-card">
           <div class="metric-label">Info Availability</div>
           <div class="metric-value ia" id="iaVal">—</div>
-          <div class="metric-sub" id="iaSub">% of grants that delivered needed fact</div>
+          <div class="metric-sub" id="iaSub">rolling 15-cycle sum of audit-class receipts (§4.8)</div>
           <div class="sparkline" id="iaSparkline"></div>
         </div>
         <div class="metric-card">
           <div class="metric-label">Security Measure</div>
           <div class="metric-value sm" id="smVal">—</div>
-          <div class="metric-sub" id="smSub">% unintended rcv</div>
+          <div class="metric-sub" id="smSub">same window as IA; unintended ÷ shared-class</div>
           <div class="sparkline" id="smSparkline"></div>
         </div>
         <div class="metric-card">
           <div class="metric-label">Cycle</div>
           <div class="metric-value cycle" id="cycleVal">0</div>
-          <div class="metric-sub" id="cycleSub">requests fired</div>
+          <div class="metric-sub" id="cycleSub">facts gen this cycle</div>
         </div>
         <div class="metric-card">
           <div class="metric-label">Network</div>
@@ -541,8 +544,8 @@
       <div class="section-label">Simulation Controls</div>
       <div class="control-row">
         <span class="control-label">Speed</span>
-        <input type="range" id="speedSlider" min="25" max="3000" value="1200" step="25"
-          oninput="updateSpeed(this.value)" title="Interval between cycles (lower = faster)">
+        <input type="range" id="speedSlider" min="200" max="3000" value="1200" step="100"
+          oninput="updateSpeed(this.value)">
         <span class="range-val" id="speedVal">1.2s</span>
       </div>
       <div class="control-row">
@@ -590,7 +593,7 @@
 <script>
 // ============================================================
 // IOTBSM SIMULATION ENGINE
-// Agentic AI per-request claim model, dynamic network
+// IEOTBSM Figure 5 cycle, §4.6–4.8 (static network unless ± ORG)
 // ============================================================
 
 // ---- Config ----
@@ -603,7 +606,32 @@ let CFG = {
   expirationInterval: 5,
   tpm: 1,               // trust policy model
   speed: 1200,
+  dynamicNetwork: true,
+  joinOrgChance: 0.034,
+  leaveOrgChance: 0.022,
+  maxOrgs: 8,
+  minOrgs: 2,
+  agentChurn: true,
+  joinAgentChance: 0.036,
+  leaveAgentChance: 0.026,
+  minAgentsPerOrg: 2,
+  maxAgentsPerOrg: 16,
+  pulseBudgetPerCycle: 14,
+  pulseIntraOrgChance: 0.2,   // sample intra-org shares (many per cycle)
+  pulseDenyCrossChance: 0.14, // sample failed BS-BS hops
+  /** Poison pill: malicious fact; each successful hop erodes trust (hop + ripples). */
+  poisonRandomChance: 0,       // >0 for rare auto-inject per cycle (e.g. 0.0015)
+  poisonHopDecay: 0.072,      // subtract from directed trust on the forwarding edge
+  poisonRippleIntra: 0.028,   // subtract on every directed intra-org edge in affected org(s)
+  poisonInterOrgDecay: 0.045, // subtract from both directed org–org τ on BS-mediated poison hops
+  poisonGlobalRipple: 0.011,  // subtract from every org-pair τ (network-wide stress per poison hop)
 };
+
+/** When true, stochastic addOrg/removeOrg each cycle is skipped (+ ORG / − ORG still work). */
+let orgChurnPaused = false;
+
+/** When true, stochastic agent join/leave within orgs is skipped. */
+let agentChurnPaused = false;
 
 // ---- State ----
 let state = {
@@ -611,15 +639,15 @@ let state = {
   orgs: [],
   agents: [],
   facts: [],
-  requests: [],         // per-request claim events
   iaHistory: [],
   smHistory: [],
   running: true,
   simTimer: null,
-  totalRequests: 0,
-  totalBreaches: 0,
-  totalShared: 0,
-  totalIntended: 0,
+  cycleSatisfiedAgents: 0,
+  cycleIntended: 0,
+  cycleUnintended: 0,
+  cycleTotalShared: 0,
+  cycleFactsGenerated: 0,
 };
 
 // ---- Canvas ----
@@ -656,6 +684,11 @@ function resetView() {
   view.zoom = 1;
   view.panX = 0;
   view.panY = 0;
+}
+
+/** True when view is not 1:1 — drag-pan is enabled without Alt. */
+function viewAllowsDragPan() {
+  return Math.abs(view.zoom - 1) > 0.002;
 }
 
 function zoomAtScreen(sx, sy, factor) {
@@ -730,7 +763,6 @@ function initLegendToggles() {
 let orgIdCounter = 0;
 let agentIdCounter = 0;
 let factIdCounter = 0;
-let claimIdCounter = 0;
 
 const ORG_COLORS = [
   '#2a9de0','#e05a2a','#2ae08a','#e0d02a','#9b2ae0',
@@ -745,8 +777,8 @@ function createOrg(x, y) {
     color: ORG_COLORS[id % ORG_COLORS.length],
     agents: [],
     boundarySpaners: [],  // subset of agents
-    factRepo: [],         // fact request repository
-    trustIn: {},          // trustIn[orgId] = {value, interactions}
+    factRepo: new Set(),  // fact request repository (posted requirements)
+    trustIn: {},          // trustIn[orgId] = {value, interactions, tau0}
     interactionCount: {},
     joined: state.cycle,
   };
@@ -772,9 +804,10 @@ function createAgent(orgId) {
     factRequired: null,
     satisfied: false,
     joinedCycle: state.cycle,
-    // Per-request claim fields
-    currentClaims: [],  // active claims this cycle
-    role: 'agent',
+    inbox: [],           // facts received end of prior cycle (accessible with gen)
+    pendingReceive: [],  // accumulates during share phases this cycle
+    genThisCycle: null,
+    role: 'ai_agent',
   };
 }
 
@@ -790,14 +823,19 @@ function initSim() {
 
   state = {
     cycle: 0, orgs: [], agents: [], facts: [],
-    requests: [], iaHistory: [], smHistory: [],
+    iaHistory: [], smHistory: [],
     running: true, simTimer: null,
-    totalRequests: 0, totalBreaches: 0,
-    totalShared: 0, totalIntended: 0,
+    cycleSatisfiedAgents: 0,
+    cycleIntended: 0,
+    cycleUnintended: 0,
+    cycleTotalShared: 0,
+    cycleFactsGenerated: 0,
+    metricRollWindow: [],
   };
 
   orgIdCounter = 0; agentIdCounter = 0;
-  factIdCounter = 0; claimIdCounter = 0;
+  factIdCounter = 0;
+  clearTrustFlashMaps();
 
   // Create 4 orgs
   for (let i = 0; i < 4; i++) addOrg(false);
@@ -838,8 +876,8 @@ function addOrg(doLayout = true) {
   state.orgs.forEach(o => {
     if (o.id !== org.id) {
       const t = 0.1 + Math.random() * 0.3;
-      if (!org.trustIn[o.id]) org.trustIn[o.id] = { value: t, interactions: 0 };
-      if (!o.trustIn[org.id]) o.trustIn[org.id] = { value: t, interactions: 0 };
+      if (!org.trustIn[o.id]) org.trustIn[o.id] = { value: t, interactions: 0, tau0: t };
+      if (!o.trustIn[org.id]) o.trustIn[org.id] = { value: t, interactions: 0, tau0: t };
       if (!org.interactionCount[o.id]) org.interactionCount[o.id] = 0;
       if (!o.interactionCount[org.id]) o.interactionCount[org.id] = 0;
     }
@@ -870,12 +908,113 @@ function removeOrg() {
   logEvent('leave', `${org.name} left the network`);
 }
 
+/** Remove facts that reference an agent (initiator, pedigree, or any path); clean mailboxes. */
+function purgeFactsReferencingAgent(aid) {
+  function touches(f) {
+    if (f.initiator === aid) return true;
+    if ((f.pedigree || []).includes(aid)) return true;
+    if (!f.pathTo) return false;
+    for (const k of Object.keys(f.pathTo)) {
+      if (parseInt(k, 10) === aid) return true;
+      const p = f.pathTo[k];
+      if (p && p.includes(aid)) return true;
+    }
+    return false;
+  }
+  state.facts = state.facts.filter(f => !touches(f));
+  const kept = new Set(state.facts);
+  state.agents.forEach(a => {
+    a.inbox = (a.inbox || []).filter(f => kept.has(f));
+    a.pendingReceive = (a.pendingReceive || []).filter(f => kept.has(f));
+    a.factsGenerated = (a.factsGenerated || []).filter(f => kept.has(f));
+    if (a.genThisCycle && !kept.has(a.genThisCycle)) a.genThisCycle = null;
+  });
+}
+
+function stripTrustReferencesToAgentId(aid) {
+  state.agents.forEach(a => { delete a.trustIn[aid]; });
+}
+
+/** One new AI agent joins a randomly chosen org with capacity. */
+function addAgentToRandomOrg() {
+  const candidates = state.orgs.filter(o =>
+    state.agents.filter(a => a.orgId === o.id).length < CFG.maxAgentsPerOrg
+  );
+  if (!candidates.length) return;
+  const org = candidates[Math.floor(Math.random() * candidates.length)];
+  const agent = createAgent(org.id);
+  agent.factRequired = Math.floor(Math.random() * 20);
+  state.agents.push(agent);
+  org.agents.push(agent.id);
+  initAgentTrustForOrg(org);
+  electBoundarySpanners();
+  logEvent('join', `${agent.name} joined ${org.name}`);
+}
+
+/** Remove one random agent from an org that still has more than minAgentsPerOrg members. */
+function removeAgentFromRandomOrg() {
+  const leavers = state.agents.filter(a => {
+    const n = state.agents.filter(x => x.orgId === a.orgId).length;
+    return n > CFG.minAgentsPerOrg;
+  });
+  if (!leavers.length) return;
+  const agent = leavers[Math.floor(Math.random() * leavers.length)];
+  const org = getOrg(agent.orgId);
+  if (!org) return;
+  const aid = agent.id;
+  purgeFactsReferencingAgent(aid);
+  stripTrustReferencesToAgentId(aid);
+  state.agents = state.agents.filter(a => a.id !== aid);
+  org.agents = org.agents.filter(id => id !== aid);
+  electBoundarySpanners();
+  logEvent('leave', `${agent.name} left ${org.name}`);
+}
+
+/**
+ * Seed a poison-pill fact: spreads like other facts, but each successful hop triggers
+ * applyPoisonTrustCascade (hop decay, intra ripples, inter-org τ hit, global org τ ripple).
+ * fact.cycle is set to state.cycle + 1 so it participates in the next simulation tick.
+ */
+function injectPoisonPill() {
+  if (!state.agents || !state.agents.length) return;
+  const candidates = state.agents.filter(a => !a.isBoundarySpanner);
+  if (!candidates.length) {
+    logEvent('warn', 'Poison pill: no non–BS-AI agents to seed');
+    return;
+  }
+  const agent = candidates[Math.floor(Math.random() * candidates.length)];
+  const org = getOrg(agent.orgId);
+  const fw = FACT_WAREHOUSE();
+  const fact = {
+    id: factIdCounter++,
+    value: fw[Math.floor(Math.random() * fw.length)],
+    initiator: agent.id,
+    cycle: state.cycle + 1,
+    pedigree: [agent.id],
+    pathTo: { [agent.id]: [agent.id] },
+    expired: false,
+    poison: true,
+  };
+  state.facts.push(fact);
+  agent.factsGenerated.push(fact);
+  if (!agent.genThisCycle) {
+    agent.genThisCycle = fact;
+  } else {
+    ensureAgentMailboxes(agent);
+    agent.inbox.push(fact);
+  }
+  logEvent('warn', `☠ Poison pill fact ${fact.id} at ${agent.name} (${org ? org.name : '?'}) — trust erodes on every hop`);
+}
+
 function initInterOrgTrust() {
   state.orgs.forEach(o1 => {
     state.orgs.forEach(o2 => {
       if (o1.id === o2.id) return;
       if (!o1.trustIn[o2.id]) {
-        o1.trustIn[o2.id] = { value: 0.1 + Math.random() * 0.3, interactions: 0 };
+        const v = 0.1 + Math.random() * 0.3;
+        o1.trustIn[o2.id] = { value: v, interactions: 0, tau0: v };
+      } else if (o1.trustIn[o2.id].tau0 === undefined) {
+        o1.trustIn[o2.id].tau0 = o1.trustIn[o2.id].value;
       }
       if (!o1.interactionCount[o2.id]) o1.interactionCount[o2.id] = 0;
     });
@@ -945,7 +1084,7 @@ function electBoundarySpanners() {
     orgAgents.forEach(a => {
       if (a.isBoundarySpanner) {
         a.isBoundarySpanner = false;
-        a.role = 'agent';
+        a.role = 'ai_agent';
         // Remove inter-org BS trust relations
         Object.keys(a.trustIn).forEach(tid => {
           const other = getAgent(parseInt(tid));
@@ -959,7 +1098,7 @@ function electBoundarySpanners() {
     for (let i = 0; i < bsCount; i++) {
       const bs = orgAgents[i];
       bs.isBoundarySpanner = true;
-      bs.role = 'boundary_spanner';
+      bs.role = 'boundary_spanner_ai';
       org.boundarySpanners.push(bs.id);
     }
 
@@ -982,41 +1121,332 @@ function electBoundarySpanners() {
 }
 
 // ============================================================
-// PER-REQUEST CLAIM MODEL (Core agentic extension)
-// An agent carries a per-request claim: {orgId, role, context}
-// An agent may act for DIFFERENT orgs on different requests
+// IEOTBSM FIGURE 5 — Trust-based information sharing (cycle)
 // ============================================================
 
-function createClaim(agentId, requestingOrgId, targetOrgId, factNeeded) {
-  return {
-    id: claimIdCounter++,
-    agentId,
-    requestingOrgId,
-    targetOrgId,
-    factNeeded,
-    timestamp: state.cycle,
-    status: 'pending', // pending | granted | denied | breached
-    path: [],          // entity path
-  };
+const FACT_WAREHOUSE = () => Array.from({ length: 20 }, (_, i) => i);
+
+/** Throttled graph pulses: intra-org grants sampled; cross-org & breaches prioritized. */
+function maybePulseFactPath(path, outcome, opts) {
+  const { allowIntraThrottle = true } = opts || {};
+  if (!path || path.length < 2) return;
+  if ((state.pulseBudget ?? 0) <= 0) return;
+  const a0 = path[0];
+  const a1 = path[1];
+  if (outcome === 'poison') {
+    state.pulseBudget--;
+    addRequestPulse(path, 'poison');
+    return;
+  }
+  if (allowIntraThrottle && outcome === 'grant' && a0 && a1 && a0.orgId === a1.orgId) {
+    if (Math.random() > CFG.pulseIntraOrgChance) return;
+  }
+  state.pulseBudget--;
+  addRequestPulse(path, outcome);
+}
+
+function decayAgentTrustBy(u, targetAgentId, amount) {
+  if (amount <= 0) return;
+  u.trustIn[targetAgentId] = Math.max(0, (u.trustIn[targetAgentId] ?? 0) - amount);
+}
+
+/** Every directed intra-org edge in one org loses a bit of trust (poison ripple). */
+function ripplePoisonIntraOrg(orgId, amount) {
+  if (amount <= 0) return;
+  const ents = state.agents.filter(a => a.orgId === orgId);
+  for (const a of ents) {
+    for (const b of ents) {
+      if (a.id === b.id) continue;
+      decayAgentTrustBy(a, b.id, amount);
+    }
+  }
+}
+
+function decayInterOrgTauBothWays(om, on, amount) {
+  if (amount <= 0 || !om || !on) return;
+  const tAB = om.trustIn[on.id];
+  const tBA = on.trustIn[om.id];
+  if (tAB) tAB.value = Math.max(0, tAB.value - amount);
+  if (tBA) tBA.value = Math.max(0, tBA.value - amount);
+}
+
+/** Light stress on all org–org links (cascading network degradation). */
+function ripplePoisonGlobalOrgTau(amount) {
+  if (amount <= 0) return;
+  state.orgs.forEach(om => {
+    state.orgs.forEach(on => {
+      if (om.id >= on.id) return;
+      decayInterOrgTauBothWays(om, on, amount);
+    });
+  });
+}
+
+/**
+ * Called after a successful poison-fact delivery. Erodes the hop edge, ripples within org(s),
+ * stresses inter-org τ on cross-org hops, and applies a small global org–org ripple.
+ */
+function applyPoisonTrustCascade(from, to, fact) {
+  if (!fact || !fact.poison) return;
+  const hop = CFG.poisonHopDecay;
+  const ripple = CFG.poisonRippleIntra;
+  const orgD = CFG.poisonInterOrgDecay;
+  const globalD = CFG.poisonGlobalRipple;
+
+  decayAgentTrustBy(from, to.id, hop);
+
+  if (from.orgId === to.orgId) {
+    ripplePoisonIntraOrg(from.orgId, ripple);
+  } else {
+    const om = getOrg(from.orgId);
+    const on = getOrg(to.orgId);
+    decayInterOrgTauBothWays(om, on, orgD);
+    ripplePoisonIntraOrg(from.orgId, ripple);
+    ripplePoisonIntraOrg(to.orgId, ripple);
+  }
+  ripplePoisonGlobalOrgTau(globalD);
+}
+
+function ensureAgentMailboxes(a) {
+  if (!a.inbox) a.inbox = [];
+  if (!a.pendingReceive) a.pendingReceive = [];
+}
+
+function currentAccessibleValues(agent) {
+  const s = new Set();
+  if (agent.genThisCycle) s.add(agent.genThisCycle.value);
+  for (const f of agent.inbox) s.add(f.value);
+  for (const f of agent.pendingReceive) s.add(f.value);
+  return s;
+}
+
+function willingToReceiveAgent(agent) {
+  return !currentAccessibleValues(agent).has(agent.factRequired);
+}
+
+function bsWillingForISP4(bs, org) {
+  if (org.factRepo.size === 0) return true;
+  const vals = currentAccessibleValues(bs);
+  for (const req of org.factRepo) {
+    if (!vals.has(req)) return true;
+  }
+  return false;
+}
+
+function holdingsToShare(agent) {
+  const out = [];
+  if (agent.genThisCycle && agent.genThisCycle.value !== agent.factRequired) {
+    out.push(agent.genThisCycle);
+  }
+  if (!agent.isBoundarySpanner) {
+    for (const f of agent.inbox) {
+      if (f.value !== agent.factRequired) out.push(f);
+    }
+    for (const f of agent.pendingReceive) {
+      if (f.value !== agent.factRequired) out.push(f);
+    }
+  } else {
+    for (const f of agent.inbox) out.push(f);
+    for (const f of agent.pendingReceive) out.push(f);
+  }
+  return out;
+}
+
+function tryDeliverIntraOrg(from, to, fact) {
+  if (from.id === to.id) return false;
+  if (from.orgId !== to.orgId) return false;
+  const tau = from.trustIn[to.id] ?? 0;
+  if (tau < CFG.trustThreshold) return false;
+  if (to.isBoundarySpanner) {
+    if (!bsWillingForISP4(to, getOrg(to.orgId))) return false;
+  } else {
+    if (!willingToReceiveAgent(to)) return false;
+  }
+  if (!fact.pathTo[from.id]) return false;
+  if (fact.pedigree.includes(to.id)) return false;
+
+  fact.pedigree.push(to.id);
+  fact.pathTo[to.id] = fact.pathTo[from.id].concat([to.id]);
+  to.pendingReceive.push(fact);
+  if (fact.poison) {
+    applyPoisonTrustCascade(from, to, fact);
+    maybePulseFactPath([from, to], 'poison');
+  } else {
+    maybePulseFactPath([from, to], 'grant');
+  }
+  return true;
+}
+
+function tryDeliverCrossOrgBS(fromBS, toBS, fact) {
+  if (fromBS.orgId === toBS.orgId) return false;
+  const om = getOrg(fromBS.orgId);
+  const on = getOrg(toBS.orgId);
+  const interOrgTrust = om.trustIn[on.id]?.value ?? 0;
+  const prevBSTrust = fromBS.trustIn[toBS.id] ?? 0;
+  const instant = interOrgTrust * CFG.alpha + prevBSTrust * (1 - CFG.alpha);
+  fromBS.trustIn[toBS.id] = instant;
+  if (instant < CFG.trustThreshold) {
+    if (Math.random() < CFG.pulseDenyCrossChance) {
+      maybePulseFactPath([fromBS, toBS], 'deny', { allowIntraThrottle: false });
+    }
+    return false;
+  }
+  if (!bsWillingForISP4(toBS, on)) {
+    if (Math.random() < CFG.pulseDenyCrossChance) {
+      maybePulseFactPath([fromBS, toBS], 'deny', { allowIntraThrottle: false });
+    }
+    return false;
+  }
+  if (!fact.pathTo[fromBS.id]) return false;
+  if (fact.pedigree.includes(toBS.id)) return false;
+
+  fact.pedigree.push(toBS.id);
+  fact.pathTo[toBS.id] = fact.pathTo[fromBS.id].concat([toBS.id]);
+  toBS.pendingReceive.push(fact);
+  om.interactionCount[on.id] = (om.interactionCount[on.id] || 0) + 1;
+  if (fact.poison) {
+    applyPoisonTrustCascade(fromBS, toBS, fact);
+    maybePulseFactPath([fromBS, toBS], 'poison', { allowIntraThrottle: false });
+  } else {
+    maybePulseFactPath([fromBS, toBS], 'grant', { allowIntraThrottle: false });
+  }
+  return true;
+}
+
+function sameOrgEntities(orgId) {
+  return state.agents.filter(a => a.orgId === orgId);
+}
+
+function runIntraOrgSharingRound() {
+  state.orgs.forEach(org => {
+    const ents = sameOrgEntities(org.id);
+    for (const from of ents) {
+      const facts = holdingsToShare(from);
+      for (const fact of facts) {
+        for (const to of ents) {
+          tryDeliverIntraOrg(from, to, fact);
+        }
+      }
+    }
+  });
+}
+
+function mergePendingIntoInbox() {
+  state.agents.forEach(a => {
+    ensureAgentMailboxes(a);
+    for (const f of a.pendingReceive) {
+      if (!a.inbox.includes(f)) a.inbox.push(f);
+    }
+    a.pendingReceive = [];
+  });
+}
+
+function runCrossOrgBSSharing() {
+  const allBS = state.agents.filter(a => a.isBoundarySpanner);
+  for (const fromBS of allBS) {
+    const facts = holdingsToShare(fromBS);
+    for (const fact of facts) {
+      for (const toBS of allBS) {
+        tryDeliverCrossOrgBS(fromBS, toBS, fact);
+      }
+    }
+  }
+}
+
+function pathTrustEdgesOk(path) {
+  for (let i = 0; i < path.length - 1; i++) {
+    const u = getAgent(path[i]);
+    const v = getAgent(path[i + 1]);
+    if (!u || !v) return false;
+    if (u.orgId === v.orgId) {
+      if ((u.trustIn[v.id] ?? 0) < CFG.trustThreshold) return false;
+    } else {
+      const om = getOrg(u.orgId);
+      const on = getOrg(v.orgId);
+      const interOrgTrust = om.trustIn[on.id]?.value ?? 0;
+      const prev = u.trustIn[v.id] ?? 0;
+      const blend = interOrgTrust * CFG.alpha + prev * (1 - CFG.alpha);
+      if (blend < CFG.trustThreshold) return false;
+    }
+  }
+  return true;
+}
+
+function auditPedigreesAndTPM() {
+  let intended = 0;
+  let unintended = 0;
+
+  for (const fact of state.facts) {
+    if (fact.expired || fact.cycle !== state.cycle) continue;
+    if (!fact.pathTo) continue;
+    const init = getAgent(fact.initiator);
+    if (!init) continue;
+
+    for (const rid of fact.pedigree) {
+      if (rid === fact.initiator) continue;
+      const path = fact.pathTo[rid];
+      if (!path || path.length < 2) continue;
+
+      const recip = getAgent(rid);
+      if (!recip) continue;
+
+      const edgesOk = pathTrustEdgesOk(path);
+      // Classify every non-initiator receipt (not only agents still “unsatisfied” at
+      // cycle end). Otherwise genThisCycle can match factRequired by chance or inbox
+      // can satisfy the agent before audit, wiping shared-class and all unintended/SM signal.
+      if (edgesOk) intended++;
+      else {
+        unintended++;
+        const claim = { path };
+        const result = { path, breach: true };
+        applyTPM(claim, result, init, null, null, null, 'pedigree');
+        const apath = path.map(id => getAgent(id)).filter(Boolean);
+        if (apath.length >= 2) {
+          maybePulseFactPath(apath, 'breach', { allowIntraThrottle: false });
+        }
+      }
+    }
+  }
+
+  state.cycleIntended = intended;
+  state.cycleUnintended = unintended;
+  state.cycleTotalShared = intended + unintended;
+  if (unintended > 0) {
+    logEvent('breach', `Cycle ${state.cycle}: ${unintended} unintended receiver(s); TPM applied`);
+  }
 }
 
 // ============================================================
-// SIMULATION STEP
+// SIMULATION STEP (Figure 5)
 // ============================================================
 
 function simStep() {
   state.cycle++;
   document.getElementById('cycleBadge').textContent = `CYCLE ${state.cycle}`;
+  state.pulseBudget = CFG.pulseBudgetPerCycle;
 
-  // 1. Boundary spanner regulatory process
+  state.facts.forEach(f => {
+    if (state.cycle - f.cycle > CFG.expirationInterval) f.expired = true;
+  });
+  state.facts = state.facts.filter(f => !f.expired);
+
+  state.agents.forEach(a => {
+    ensureAgentMailboxes(a);
+    a.inbox = (a.inbox || []).filter(f => !f.expired);
+    a.pendingReceive = [];
+    a.genThisCycle = null;
+  });
+
   if (state.cycle % CFG.beta === 0) {
     electBoundarySpanners();
     logEvent('system', `BS election at cycle ${state.cycle}`);
   }
 
-  // 2. Generate facts for each agent
-  const factWarehouse = Array.from({length: 20}, (_, i) => i);
+  const factWarehouse = FACT_WAREHOUSE();
+  let genCount = 0;
   state.agents.forEach(agent => {
+    if (agent.factRequired === undefined || agent.factRequired === null) {
+      agent.factRequired = Math.floor(Math.random() * 20);
+    }
     if (agent.isBoundarySpanner) return;
     const fact = {
       id: factIdCounter++,
@@ -1024,253 +1454,113 @@ function simStep() {
       initiator: agent.id,
       cycle: state.cycle,
       pedigree: [agent.id],
+      pathTo: { [agent.id]: [agent.id] },
       expired: false,
     };
+    agent.genThisCycle = fact;
     agent.factsGenerated.push(fact);
     state.facts.push(fact);
-    // Expire old
-    state.facts.forEach(f => {
-      if (state.cycle - f.cycle > CFG.expirationInterval) f.expired = true;
+    genCount++;
+  });
+  state.cycleFactsGenerated = genCount;
+
+  state.orgs.forEach(org => {
+    org.factRepo = new Set();
+    org.agents.forEach(aid => {
+      const a = getAgent(aid);
+      if (a && !a.isBoundarySpanner) org.factRepo.add(a.factRequired);
     });
-    state.facts = state.facts.filter(f => !f.expired);
   });
 
-  // 3. Determine each agent's fact requirement (0 is valid — do not use !factRequired)
   state.agents.forEach(agent => {
-    if (agent.factRequired === undefined || agent.factRequired === null) {
-      agent.factRequired = Math.floor(Math.random() * 20);
-    }
-    agent.satisfied = agent.factsGenerated.some(f => f.value === agent.factRequired);
+    if (agent.isBoundarySpanner) return;
+    const vals = currentAccessibleValues(agent);
+    agent.satisfied = vals.has(agent.factRequired);
   });
 
-  // 4. Fire 1-3 information-sharing requests this cycle
-  const reqCount = 1 + Math.floor(Math.random() * 3);
-  for (let r = 0; r < reqCount; r++) {
-    fireInfoRequest();
-  }
+  runIntraOrgSharingRound();
+  mergePendingIntoInbox();
 
-  // 5. Build inter-org trust via logistic growth (eq. 5)
+  state.agents.forEach(agent => {
+    if (agent.isBoundarySpanner) return;
+    const vals = currentAccessibleValues(agent);
+    agent.satisfied = vals.has(agent.factRequired);
+  });
+
+  runIntraOrgSharingRound();
+  mergePendingIntoInbox();
+
+  runCrossOrgBSSharing();
+  mergePendingIntoInbox();
+
+  runIntraOrgSharingRound();
+  mergePendingIntoInbox();
+
+  state.agents.forEach(agent => {
+    const vals = currentAccessibleValues(agent);
+    agent.satisfied = vals.has(agent.factRequired);
+  });
+
+  state.cycleSatisfiedAgents = state.agents.filter(a => a.satisfied).length;
+
+  auditPedigreesAndTPM();
+
   updateInterOrgTrust();
 
-  // 6. Compute metrics
   computeMetrics();
 
-  // 7. Dynamic network events (random org join/leave)
-  if (state.cycle > 5 && Math.random() < 0.04) {
-    if (state.orgs.length < 7) {
+  if (CFG.dynamicNetwork && !orgChurnPaused) {
+    if (state.cycle > 5 && Math.random() < CFG.joinOrgChance && state.orgs.length < CFG.maxOrgs) {
       addOrg();
     }
-  }
-  if (state.cycle > 10 && Math.random() < 0.025) {
-    if (state.orgs.length > 2) removeOrg();
-  }
-
-  updateUI();
-}
-
-// ============================================================
-// INFORMATION REQUEST (Per-request Claim)
-// ============================================================
-
-function fireInfoRequest(manual = false) {
-  if (state.agents.length < 2) return;
-
-  // Pick a requesting agent (the "agentic AI")
-  const unsatisfied = state.agents.filter(a => !a.satisfied);
-  if (!unsatisfied.length) return;
-  const requester = unsatisfied[Math.floor(Math.random() * unsatisfied.length)];
-
-  // Agent asserts a per-request claim: it acts on behalf of its org
-  // but could also be invoked by another org (cross-org request)
-  const requestingOrg = getOrg(requester.orgId);
-  if (!requestingOrg) return;
-
-  // Find a target org that might have the needed fact
-  const otherOrgs = state.orgs.filter(o => o.id !== requestingOrg.id);
-  if (!otherOrgs.length) return;
-  const targetOrg = otherOrgs[Math.floor(Math.random() * otherOrgs.length)];
-
-  const claim = createClaim(
-    requester.id,
-    requestingOrg.id,
-    targetOrg.id,
-    requester.factRequired
-  );
-
-  state.totalRequests++;
-
-  // Evaluate claim through trust chain
-  const result = evaluateClaim(claim, requester, requestingOrg, targetOrg);
-  state.requests.push({ claim, result, cycle: state.cycle });
-
-  if (manual) {
-    logEvent('claim', `Manual request: ${requester.name}@${requestingOrg.name} → ${targetOrg.name} [fact:${requester.factRequired}] → ${result.status}`);
-  }
-
-  return result;
-}
-
-function fireRequest() {
-  // Manual single request
-  const r = fireInfoRequest(true);
-  if (r) updateUI();
-}
-
-function evaluateClaim(claim, requester, requestingOrg, targetOrg) {
-  const result = { status: 'pending', path: [requester.id], breach: false, reason: '' };
-
-  // Step 1: Find boundary spanners for both orgs
-  const reqBS = state.agents.filter(a => a.orgId === requestingOrg.id && a.isBoundarySpanner);
-  const tgtBS = state.agents.filter(a => a.orgId === targetOrg.id && a.isBoundarySpanner);
-
-  if (!reqBS.length || !tgtBS.length) {
-    result.status = 'denied';
-    result.reason = 'No boundary spanners available';
-    logEvent('breach', `No BS: ${requestingOrg.name} → ${targetOrg.name}`);
-    if (!reqBS.length) {
-      addRequestPulse([requester, pulseOrgHub(requestingOrg.id)], 'deny');
-    } else {
-      const bridge = reqBS[0];
-      addRequestPulse([requester, bridge, pulseOrgHub(targetOrg.id)], 'deny');
+    if (state.cycle > 10 && Math.random() < CFG.leaveOrgChance && state.orgs.length > CFG.minOrgs) {
+      removeOrg();
     }
-    return result;
   }
 
-  // Step 2: Per-request claim — agent asserts claim token
-  // The claim is: "I am acting for org X, requesting from org Y"
-  // Trust check: agent → own BS (inter-personal)
-  const myBS = reqBS[0];
-  const agentTrustInBS = requester.trustIn[myBS.id] ?? 0;
-
-  if (agentTrustInBS < CFG.trustThreshold) {
-    result.status = 'denied';
-    result.reason = `Insufficient agent→BS trust (${agentTrustInBS.toFixed(2)})`;
-    applyTPM(claim, result, requester, myBS, null, null, 'agent-bs');
-    playSoundDenied();
-    addRequestPulse([requester, myBS], 'deny');
-    return result;
-  }
-  result.path.push(myBS.id);
-
-  // Step 3: BS → BS inter-org trust check
-  const theirBS = tgtBS[Math.floor(Math.random() * tgtBS.length)];
-  // Instantaneous BS trust (eq 7 from paper, α-blended)
-  const interOrgTrust = (requestingOrg.trustIn[targetOrg.id]?.value ?? 0);
-  const prevBSTrust = myBS.trustIn[theirBS.id] ?? 0;
-  const instantBSTrust = interOrgTrust * CFG.alpha + prevBSTrust * (1 - CFG.alpha);
-
-  // Update BS trust
-  myBS.trustIn[theirBS.id] = instantBSTrust;
-
-  // ISP3: Check BS-BS trust threshold
-  if (instantBSTrust < CFG.trustThreshold) {
-    result.status = 'denied';
-    result.reason = `BS-BS trust too low (${instantBSTrust.toFixed(2)})`;
-    applyTPM(claim, result, requester, myBS, theirBS, targetOrg, 'bs-bs');
-    playSoundDenied();
-    addRequestPulse([requester, myBS, theirBS], 'deny');
-    return result;
-  }
-  result.path.push(theirBS.id);
-
-  // Step 4: Their BS delivers to a target agent
-  const targetAgents = state.agents.filter(a =>
-    a.orgId === targetOrg.id && !a.isBoundarySpanner
-  );
-  if (!targetAgents.length) {
-    result.status = 'denied'; result.reason = 'No target agents';
-    playSoundDenied();
-    addRequestPulse([requester, myBS, theirBS], 'deny');
-    return result;
-  }
-  const targetAgent = targetAgents[Math.floor(Math.random() * targetAgents.length)];
-  result.path.push(targetAgent.id);
-
-  // ISP4: Check recipient willingness
-  if (targetAgent.satisfied) {
-    result.status = 'denied'; result.reason = 'Target already satisfied';
-    playSoundDenied();
-    addRequestPulse([requester, myBS, theirBS, targetAgent], 'deny');
-    return result;
-  }
-
-  // Check inter-org trust threshold for fact transfer
-  if (interOrgTrust < CFG.trustThreshold * 0.8) {
-    result.status = 'breached';
-    result.breach = true;
-    result.reason = `Inter-org trust insufficient (${interOrgTrust.toFixed(2)})`;
-    state.totalBreaches++;
-    applyTPM(claim, result, requester, myBS, theirBS, targetOrg, 'inter-org');
-    logEvent('breach', `BREACH ${requestingOrg.name}→${targetOrg.name} [T:${interOrgTrust.toFixed(2)}]`);
-    addRequestPulse([requester, myBS, theirBS, targetAgent], 'breach');
-    return result;
-  }
-
-  // SUCCESS — fact flows (IA = share events that delivered the *needed* fact)
-  result.status = 'granted';
-  state.totalShared++;
-
-  const availFacts = state.facts.filter(f =>
-    f.initiator !== requester.id && !f.expired &&
-    state.agents.find(a => a.id === f.initiator)?.orgId === targetOrg.id
-  );
-
-  if (availFacts.length) {
-    const need = requester.factRequired;
-    const matching = availFacts.filter(f => f.value === need);
-    const fact = matching.length
-      ? matching[Math.floor(Math.random() * matching.length)]
-      : availFacts[Math.floor(Math.random() * availFacts.length)];
-    fact.pedigree.push(requester.id);
-    if (fact.value === need) {
-      requester.satisfied = true;
-      state.totalIntended++;
-      logEvent('ok', `✓ ${requester.name}@${requestingOrg.name} satisfied via ${targetOrg.name} [fact:${fact.value}]`);
-    } else {
-      logEvent('ok', `→ ${requester.name}@${requestingOrg.name}↔${targetOrg.name} [fact:${fact.value}]`);
+  if (CFG.agentChurn && !agentChurnPaused) {
+    if (state.cycle > 6 && Math.random() < CFG.joinAgentChance) {
+      addAgentToRandomOrg();
     }
-  } else {
-    playSoundGrantTransfer();
+    if (state.cycle > 8 && Math.random() < CFG.leaveAgentChance) {
+      removeAgentFromRandomOrg();
+    }
   }
 
-  // Update inter-org interaction count
-  if (!requestingOrg.interactionCount[targetOrg.id]) requestingOrg.interactionCount[targetOrg.id] = 0;
-  requestingOrg.interactionCount[targetOrg.id]++;
-
-  addRequestPulse([requester, myBS, theirBS, targetAgent], 'grant');
-
-  return result;
+  if (CFG.poisonRandomChance > 0 && state.cycle > 15 && Math.random() < CFG.poisonRandomChance) {
+    injectPoisonPill();
+  }
 }
 
 // ============================================================
-// TRUST POLICY MODELS (TPM 1/2/3)
+// TRUST POLICY MODELS (TPM 1/2/3) — §4.8
 // ============================================================
 
 function applyTPM(claim, result, initiator, bsA, bsB, targetOrg, scope) {
   const dec = CFG.trustDecay;
+  const path = result.path;
+  if (!path || path.length < 2) return;
 
   if (CFG.tpm === 1) {
-    // TPM1: Proportional responsibility along path
-    const path = result.path;
-    path.forEach((aid, idx) => {
-      if (idx === 0) return;
-      const prev = getAgent(path[idx - 1]);
-      const curr = getAgent(aid);
-      if (prev && curr) {
-        const depth = idx;
-        const update = Math.pow(dec, path.length - depth + 1);
-        prev.trustIn[aid] = Math.max(0, (prev.trustIn[aid] ?? 0.5) - update);
+    const degJ = path.length - 1;
+    for (let k = 1; k < path.length; k++) {
+      const ek = path[k];
+      const ekm1 = path[k - 1];
+      const prev = getAgent(ekm1);
+      const degK = k;
+      const update = Math.pow(dec, degJ - degK + 1);
+      if (prev) {
+        prev.trustIn[ek] = Math.max(0, (prev.trustIn[ek] ?? 0.5) - update);
       }
-    });
+    }
   } else if (CFG.tpm === 2) {
     // TPM2: Uniform decrement for all edges
-    const path = result.path;
     for (let i = 1; i < path.length; i++) {
       const prev = getAgent(path[i - 1]);
       if (prev) prev.trustIn[path[i]] = Math.max(0, (prev.trustIn[path[i]] ?? 0.5) - dec);
     }
   } else if (CFG.tpm === 3) {
-    // TPM3: Initiator reduces trust in all path members
+    if (!initiator) return;
     result.path.slice(1).forEach(aid => {
       initiator.trustIn[aid] = Math.max(0, (initiator.trustIn[aid] ?? 0.5) - dec);
     });
@@ -1317,11 +1607,11 @@ function updateInterOrgTrust() {
       const x = myBS.length, y = theirBS.length;
       const r = (trustSum / trustCount) / Math.pow(x * y, x);
       const i = om.interactionCount[on.id] ?? 0;
-      const t0 = t.value;
+      const tau0 = t.tau0 !== undefined ? t.tau0 : t.value;
 
-      // Logistic growth: τ(i) = τ0 / (τ0 + (1-τ0)*e^(-r*i))
-      if (i > 0 && r > 0) {
-        const newT = t0 / (t0 + (1 - t0) * Math.exp(-r * i * 0.01));
+      // Equation (5): τ(i) = τ0 / (τ0 + (1-τ0)*e^(-r*i)), τ0 fixed at org-pair init
+      if (r > 0) {
+        const newT = tau0 / (tau0 + (1 - tau0) * Math.exp(-r * i));
         om.trustIn[on.id].value = Math.min(1, Math.max(0, newT));
       }
     });
@@ -1332,42 +1622,58 @@ function updateInterOrgTrust() {
 // METRICS
 // ============================================================
 
-function computeMetrics() {
-  const ia = state.totalShared > 0
-    ? Math.round((state.totalIntended / state.totalShared) * 100)
-    : 0;
-  const sm = state.totalShared > 0
-    ? Math.round((state.totalBreaches / state.totalShared) * 100)
-    : 0;
+const METRIC_ROLL_CYCLES = 15;
 
-  state.iaHistory.push(ia);
-  state.smHistory.push(sm);
+function computeMetrics() {
+  const denom = state.cycleTotalShared;
+  // Per-cycle audit counts (this tick only).
+  const i0 = state.cycleIntended;
+  const u0 = state.cycleUnintended;
+
+  // Rolling window: sum intended/unintended over recent cycles so IA/SM are not stuck at 0/100 when
+  // shared-class count is tiny each cycle (often 0–1 receipt → round() → only 0% or 100%).
+  const rw = state.metricRollWindow || (state.metricRollWindow = []);
+  rw.push({ i: i0, u: u0 });
+  if (rw.length > METRIC_ROLL_CYCLES) rw.shift();
+  const si = rw.reduce((s, x) => s + x.i, 0);
+  const su = rw.reduce((s, x) => s + x.u, 0);
+  const sd = si + su;
+  const iaF = sd > 0 ? Math.min(100, (si / sd) * 100) : 0;
+  const smF = sd > 0 ? Math.min(100, (su / sd) * 100) : 0;
+  const ia = Math.round(iaF);
+  const sm = Math.round(smF);
+
+  state.iaHistory.push(iaF);
+  state.smHistory.push(smF);
   if (state.iaHistory.length > 30) state.iaHistory.shift();
   if (state.smHistory.length > 30) state.smHistory.shift();
 
   document.getElementById('iaVal').textContent = ia + '%';
   document.getElementById('smVal').textContent = sm + '%';
   document.getElementById('cycleVal').textContent = state.cycle;
-  document.getElementById('cycleSub').textContent = `${state.totalRequests} requests`;
+  document.getElementById('cycleSub').textContent =
+    `${state.cycleFactsGenerated} facts gen · ${denom} shared-class (this cycle)`;
   document.getElementById('netVal').textContent = state.orgs.length;
   document.getElementById('netSub').textContent =
     `${state.orgs.length} orgs · ${state.agents.filter(a=>!a.isBoundarySpanner).length} agents · ${state.agents.filter(a=>a.isBoundarySpanner).length} BS`;
 
-  renderSparkline('iaSparkline', state.iaHistory, '#7fff6b');
-  renderSparkline('smSparkline', state.smHistory, '#ff3b5c');
+  renderSparkline('iaSparkline', state.iaHistory, '#7fff6b', 100);
+  renderSparkline('smSparkline', state.smHistory, '#ff3b5c', 100);
   renderOrgList();
 }
 
-function renderSparkline(id, data, color) {
+/** @param {number} [yMax] fixed scale max (e.g. 100 for %); default scales to data max */
+function renderSparkline(id, data, color, yMax) {
   const el = document.getElementById(id);
   el.innerHTML = '';
-  const max = Math.max(...data, 1);
+  const cap = yMax != null && yMax > 0 ? yMax : Math.max(...data, 1);
   data.forEach(v => {
+    const clamped = Math.max(0, Math.min(cap, v));
     const bar = document.createElement('div');
     bar.className = 'spark-bar';
     bar.style.background = color;
-    bar.style.height = Math.max(2, (v / max) * 24) + 'px';
-    bar.style.opacity = 0.4 + 0.6 * (v / max);
+    bar.style.height = Math.max(2, (clamped / cap) * 24) + 'px';
+    bar.style.opacity = 0.4 + 0.6 * (clamped / cap);
     el.appendChild(bar);
   });
 }
@@ -1386,7 +1692,7 @@ function renderOrgList() {
       <div class="org-trust-bar">
         <div class="org-trust-fill" style="width:${avgTrust*100}%;background:${org.color}"></div>
       </div>
-      <span class="org-agents">${state.agents.filter(a=>a.orgId===org.id&&a.isBoundarySpanner).length}BS/${org.agents.length}</span>
+      <span class="org-agents">${state.agents.filter(a=>a.orgId===org.id&&a.isBoundarySpanner).length}BS-AI/${org.agents.length}</span>
     `;
     el.appendChild(div);
   });
@@ -1398,17 +1704,39 @@ function renderOrgList() {
 
 let pulses = [];
 
+// Trust edge flash when numeric/stroke trust changes (render compares to prior frame)
+const TRUST_FLASH_MS = 420;
+const trustFlashPrev = new Map();
+const trustFlashUntil = new Map();
+
+function clearTrustFlashMaps() {
+  trustFlashPrev.clear();
+  trustFlashUntil.clear();
+}
+
+/** @returns {number} 0–1 intensity if either trust component changed vs last frame */
+function trustPairFlashIntensity(key, a, b, now) {
+  const prev = trustFlashPrev.get(key);
+  if (prev && (Math.abs(a - prev[0]) > 1e-5 || Math.abs(b - prev[1]) > 1e-5)) {
+    trustFlashUntil.set(key, now + TRUST_FLASH_MS);
+  }
+  trustFlashPrev.set(key, [a, b]);
+  const until = trustFlashUntil.get(key);
+  if (!until || now >= until) return 0;
+  return (until - now) / TRUST_FLASH_MS;
+}
+
 /** Org-center waypoint for pulses (not a real agent). Renders at org.x + offsetX. */
 function pulseOrgHub(orgId) {
   return { orgId, offsetX: 0, offsetY: 0, _pulseHub: true };
 }
 
-/** Animated path: 2+ waypoints. outcome: grant (gold), deny (amber), breach (red). */
+/** Animated path: grant (white), deny (amber), breach (red), poison (violet). */
 function addRequestPulse(path, outcome) {
   if (!path || path.length < 2) return;
   const clean = path.filter(Boolean);
   if (clean.length < 2) return;
-  if (outcome !== 'grant' && outcome !== 'deny' && outcome !== 'breach') outcome = 'deny';
+  if (outcome !== 'grant' && outcome !== 'deny' && outcome !== 'breach' && outcome !== 'poison') outcome = 'deny';
   pulses.push({
     path: clean,
     outcome,
@@ -1452,26 +1780,36 @@ function renderLoop() {
   ctx.translate(view.panX, view.panY);
   ctx.scale(view.zoom, view.zoom);
 
+  const renderNow = Date.now();
+
   // Draw inter-org trust edges (org centers + numeric labels)
   if (graphLayers.interOrg) {
     state.orgs.forEach(om => {
       state.orgs.forEach(on => {
         if (om.id >= on.id) return;
-        const t = om.trustIn[on.id]?.value ?? 0;
+        const tFwd = om.trustIn[on.id]?.value ?? 0;
+        const tRev = on.trustIn[om.id]?.value ?? 0;
+        const tShow = Math.max(tFwd, tRev);
+        const flash = trustPairFlashIntensity(`io:${om.id}:${on.id}`, tFwd, tRev, renderNow);
         ctx.beginPath();
         ctx.moveTo(om.x, om.y);
         ctx.lineTo(on.x, on.y);
-        ctx.strokeStyle = `rgba(0,212,255,${t * 0.5})`;
-        ctx.lineWidth = 1 + t * 3;
+        ctx.strokeStyle = `rgba(0,212,255,${Math.min(1, tShow * 0.5 + flash * 0.48)})`;
+        ctx.lineWidth = 1 + tShow * 3 + flash * 2.8;
         ctx.setLineDash([6, 6]);
         ctx.stroke();
         ctx.setLineDash([]);
 
         const mx = (om.x + on.x) / 2, my = (om.y + on.y) / 2;
-        ctx.fillStyle = `rgba(0,212,255,${0.4 + t * 0.4})`;
-        ctx.font = '9px Space Mono, monospace';
+        ctx.fillStyle = `rgba(0,212,255,${Math.min(1, 0.4 + tShow * 0.4 + flash * 0.5)})`;
+        ctx.font = flash > 0.04 ? 'bold 9px Space Mono, monospace' : '8px Space Mono, monospace';
         ctx.textAlign = 'center';
-        ctx.fillText(t.toFixed(2), mx, my - 5);
+        if (flash > 0.02) {
+          ctx.shadowColor = 'rgba(255,255,255,0.82)';
+          ctx.shadowBlur = 11 * flash;
+        }
+        ctx.fillText(`${tFwd.toFixed(2)} / ${tRev.toFixed(2)}`, mx, my - 5);
+        ctx.shadowBlur = 0;
       });
     });
   }
@@ -1483,37 +1821,67 @@ function renderLoop() {
       agents.forEach(a => {
         agents.forEach(b => {
           if (a.id >= b.id) return;
-          const t = a.trustIn[b.id] ?? 0;
-          if (t < 0.1) return;
+          const tFwd = a.trustIn[b.id] ?? 0;
+          const tRev = b.trustIn[a.id] ?? 0;
+          if (tFwd < 0.1 && tRev < 0.1) return;
+          const tShow = Math.max(tFwd, tRev);
+          const flash = trustPairFlashIntensity(`at:${a.id}:${b.id}`, tFwd, tRev, renderNow);
           const ax = org.x + a.offsetX, ay = org.y + a.offsetY;
           const bx = org.x + b.offsetX, by = org.y + b.offsetY;
           ctx.beginPath();
           ctx.moveTo(ax, ay); ctx.lineTo(bx, by);
-          ctx.strokeStyle = `rgba(127,255,107,${t * 0.25})`;
-          ctx.lineWidth = 0.5 + t;
+          ctx.strokeStyle = `rgba(127,255,107,${Math.min(1, tShow * 0.25 + flash * 0.38)})`;
+          ctx.lineWidth = 0.5 + tShow + flash * 1.6;
           ctx.stroke();
+
+          const mx = (ax + bx) / 2, my = (ay + by) / 2;
+          ctx.fillStyle = `rgba(160,255,140,${Math.min(1, 0.32 + tShow * 0.35 + flash * 0.42)})`;
+          ctx.font = flash > 0.04 ? 'bold 8px Space Mono, monospace' : '7px Space Mono, monospace';
+          ctx.textAlign = 'center';
+          if (flash > 0.02) {
+            ctx.shadowColor = 'rgba(200,255,180,0.65)';
+            ctx.shadowBlur = 8 * flash;
+          }
+          ctx.fillText(`${tFwd.toFixed(2)} / ${tRev.toFixed(2)}`, mx, my - 4);
+          ctx.shadowBlur = 0;
         });
       });
     });
   }
 
-  // Draw BS-BS edges across orgs (inter-org channel)
+  // Draw BS-BS edges across orgs (inter-org channel); one segment + label per BS pair
   if (graphLayers.interOrg) {
     state.agents.filter(a => a.isBoundarySpanner).forEach(bs => {
-      Object.entries(bs.trustIn).forEach(([tid, tv]) => {
-        const other = getAgent(parseInt(tid));
+      Object.entries(bs.trustIn).forEach(([tid]) => {
+        const other = getAgent(parseInt(tid, 10));
         if (!other || !other.isBoundarySpanner || other.orgId === bs.orgId) return;
+        if (bs.id >= other.id) return;
         const orgA = getOrg(bs.orgId), orgB = getOrg(other.orgId);
         if (!orgA || !orgB) return;
         const ax = orgA.x + bs.offsetX, ay = orgA.y + bs.offsetY;
         const bx = orgB.x + other.offsetX, by = orgB.y + other.offsetY;
+        const tFwd = bs.trustIn[other.id] ?? 0;
+        const tRev = other.trustIn[bs.id] ?? 0;
+        const tShow = Math.max(tFwd, tRev);
+        const flash = trustPairFlashIntensity(`bs:${bs.id}:${other.id}`, tFwd, tRev, renderNow);
         ctx.beginPath();
         ctx.moveTo(ax, ay); ctx.lineTo(bx, by);
-        ctx.strokeStyle = `rgba(255,107,53,${tv * 0.5})`;
-        ctx.lineWidth = 0.8 + tv * 1.5;
+        ctx.strokeStyle = `rgba(255,107,53,${Math.min(1, tShow * 0.5 + flash * 0.42)})`;
+        ctx.lineWidth = 0.8 + tShow * 1.5 + flash * 2.2;
         ctx.setLineDash([3, 4]);
         ctx.stroke();
         ctx.setLineDash([]);
+
+        const mx = (ax + bx) / 2, my = (ay + by) / 2;
+        ctx.fillStyle = `rgba(255,153,102,${Math.min(1, 0.38 + tShow * 0.42 + flash * 0.48)})`;
+        ctx.font = flash > 0.04 ? 'bold 9px Space Mono, monospace' : '8px Space Mono, monospace';
+        ctx.textAlign = 'center';
+        if (flash > 0.02) {
+          ctx.shadowColor = 'rgba(255,220,200,0.85)';
+          ctx.shadowBlur = 10 * flash;
+        }
+        ctx.fillText(`${tFwd.toFixed(2)} / ${tRev.toFixed(2)}`, mx, my - 5);
+        ctx.shadowBlur = 0;
       });
     });
   }
@@ -1595,7 +1963,7 @@ function renderLoop() {
         ctx.font = `${isBS ? 'bold ' : ''}9px Space Mono, monospace`;
         ctx.textAlign = 'center';
         ctx.fillText(agent.name, ax, ay - nodeR - 3);
-        if (isBS) ctx.fillText('BS', ax, ay + nodeR + 10);
+        if (isBS) ctx.fillText('BS-AI', ax, ay + nodeR + 10);
       }
     });
   });
@@ -1616,6 +1984,7 @@ function renderLoop() {
 
     const isGrant = kind === 'grant';
     const isBreach = kind === 'breach';
+    const isPoison = kind === 'poison';
     const fade = Math.max(isGrant ? 0.38 : 0.3, (1 - t * 0.72) * (isGrant ? 1 : 0.95));
 
     for (let i = 0; i < Math.min(seg + 1, pathLen); i++) {
@@ -1635,10 +2004,15 @@ function renderLoop() {
         ctx.lineTo(bx, by);
       }
       if (isGrant) {
-        ctx.strokeStyle = `rgba(255,204,0,${alpha})`;
+        ctx.strokeStyle = `rgba(255,255,255,${alpha})`;
         ctx.lineWidth = 3.2;
-        ctx.shadowColor = 'rgba(255,200,80,0.55)';
-        ctx.shadowBlur = 6;
+        ctx.shadowColor = 'rgba(255,255,255,0.45)';
+        ctx.shadowBlur = 8;
+      } else if (isPoison) {
+        ctx.strokeStyle = `rgba(186,85,255,${alpha})`;
+        ctx.lineWidth = 3.1;
+        ctx.shadowColor = 'rgba(200,120,255,0.55)';
+        ctx.shadowBlur = 9;
       } else if (isBreach) {
         ctx.strokeStyle = `rgba(255,59,92,${alpha})`;
         ctx.lineWidth = 2.8;
@@ -1660,11 +2034,15 @@ function renderLoop() {
         const px = orgA2.x + a2.offsetX + (orgB2.x + b2.offsetX - orgA2.x - a2.offsetX) * (t * pathLen - seg2);
         const py = orgA2.y + a2.offsetY + (orgB2.y + b2.offsetY - orgA2.y - a2.offsetY) * (t * pathLen - seg2);
         ctx.beginPath();
-        ctx.arc(px, py, isGrant ? 5 : 4, 0, Math.PI * 2);
+        ctx.arc(px, py, isGrant ? 5 : isPoison ? 4.5 : 4, 0, Math.PI * 2);
         if (isGrant) {
-          ctx.fillStyle = '#ffcc00';
-          ctx.shadowColor = 'rgba(255,220,100,0.9)';
-          ctx.shadowBlur = 10;
+          ctx.fillStyle = '#f8fbff';
+          ctx.shadowColor = 'rgba(255,255,255,0.85)';
+          ctx.shadowBlur = 12;
+        } else if (isPoison) {
+          ctx.fillStyle = '#b855ff';
+          ctx.shadowColor = 'rgba(200,100,255,0.75)';
+          ctx.shadowBlur = 12;
         } else if (isBreach) {
           ctx.fillStyle = '#ff3b5c';
         } else {
@@ -1685,7 +2063,7 @@ function renderLoop() {
     `<span style="color:var(--text-dim)">orgs:</span> <span style="color:var(--text)">${state.orgs.length}</span>&nbsp;
      <span style="color:var(--text-dim)">agents:</span> <span style="color:var(--text)">${state.agents.filter(a=>!a.isBoundarySpanner).length}</span>&nbsp;
      <span style="color:var(--text-dim)">BS:</span> <span style="color:#ff6b35">${state.agents.filter(a=>a.isBoundarySpanner).length}</span>&nbsp;
-     <span style="color:var(--text-dim)">req:</span> <span style="color:var(--accent)">${state.totalRequests}</span>`;
+     <span style="color:var(--text-dim)">shared:</span> <span style="color:var(--accent)">${state.cycleTotalShared}</span>`;
 
   requestAnimationFrame(renderLoop);
 }
@@ -1716,7 +2094,8 @@ canvas.addEventListener('wheel', (e) => {
 }, { passive: false });
 
 canvas.addEventListener('mousedown', (e) => {
-  if (e.button === 1 || (e.button === 0 && e.altKey)) {
+  const dragPanZoomed = e.button === 0 && !e.altKey && viewAllowsDragPan();
+  if (e.button === 1 || (e.button === 0 && e.altKey) || dragPanZoomed) {
     e.preventDefault();
     isPanning = true;
     panPointer = {
@@ -1754,7 +2133,7 @@ canvas.addEventListener('mousemove', (e) => {
   const my = p.y;
   const tip = document.getElementById('tooltip');
 
-  canvas.classList.toggle('pan-ready', e.altKey && !isPanning);
+  canvas.classList.toggle('pan-ready', !isPanning && (e.altKey || viewAllowsDragPan()));
 
   if (isPanning) {
     view.panX = panPointer.startPanX + (e.clientX - panPointer.startClientX);
@@ -1787,8 +2166,9 @@ canvas.addEventListener('mousemove', (e) => {
       tip.style.left = (e.clientX + 12) + 'px';
       tip.style.top = (e.clientY - 10) + 'px';
       tip.innerHTML = `
-        <div class="tt-name">${agent.name} ${agent.isBoundarySpanner ? '⬥ BS' : ''}</div>
+        <div class="tt-name">${agent.name} ${agent.isBoundarySpanner ? '⬥ BS-AI' : '· AI'}</div>
         <div class="tt-row"><span class="tt-key">org</span><span class="tt-val">${getOrg(agent.orgId)?.name}</span></div>
+        <div class="tt-row"><span class="tt-key">class</span><span class="tt-val">${agent.isBoundarySpanner ? 'Boundary-spanner AI' : 'AI agent'}</span></div>
         <div class="tt-row"><span class="tt-key">role</span><span class="tt-val">${agent.role}</span></div>
         <div class="tt-row"><span class="tt-key">reliability</span><span class="tt-val">${agent.reliability.toFixed(3)}</span></div>
         <div class="tt-row"><span class="tt-key">avg trust</span><span class="tt-val">${avgTrust.toFixed(3)}</span></div>
@@ -2050,6 +2430,40 @@ function scheduleSim() {
   }, CFG.speed);
 }
 
+function syncOrgChurnToggleUi() {
+  const btn = document.getElementById('orgChurnToggle');
+  if (!btn) return;
+  btn.textContent = orgChurnPaused ? 'ORG CHURN OFF' : 'ORG CHURN ON';
+  btn.classList.toggle('active', !orgChurnPaused);
+  btn.setAttribute('aria-pressed', orgChurnPaused ? 'false' : 'true');
+  btn.title = orgChurnPaused
+    ? 'Automatic org join/leave is paused (click to resume)'
+    : 'Automatic org join/leave each cycle (click to pause); + ORG / − ORG still work';
+}
+
+function toggleOrgChurnPaused() {
+  orgChurnPaused = !orgChurnPaused;
+  syncOrgChurnToggleUi();
+  logEvent('system', orgChurnPaused ? 'Automatic org churn paused' : 'Automatic org churn resumed');
+}
+
+function syncAgentChurnToggleUi() {
+  const btn = document.getElementById('agentChurnToggle');
+  if (!btn) return;
+  btn.textContent = agentChurnPaused ? 'AGENT CHURN OFF' : 'AGENT CHURN ON';
+  btn.classList.toggle('active', !agentChurnPaused);
+  btn.setAttribute('aria-pressed', agentChurnPaused ? 'false' : 'true');
+  btn.title = agentChurnPaused
+    ? 'Agent join/leave within orgs is paused (click to resume)'
+    : 'Agents periodically join or leave organizations (click to pause)';
+}
+
+function toggleAgentChurnPaused() {
+  agentChurnPaused = !agentChurnPaused;
+  syncAgentChurnToggleUi();
+  logEvent('system', agentChurnPaused ? 'Automatic agent churn paused' : 'Automatic agent churn resumed');
+}
+
 function toggleSim() {
   state.running = !state.running;
   const btn = document.getElementById('toggleBtn');
@@ -2077,17 +2491,9 @@ function resetSim() {
 
 function setTPM(v) { CFG.tpm = parseInt(v); logEvent('system', `TPM set to ${v}`); }
 
-function formatSpeedLabel(ms) {
-  const n = parseInt(ms, 10);
-  if (n < 1000) return n + 'ms';
-  const s = n / 1000;
-  const rounded = Math.round(s * 10) / 10;
-  return (Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1)) + 's';
-}
-
 function updateSpeed(v) {
-  CFG.speed = Math.max(25, parseInt(v, 10) || 1200);
-  document.getElementById('speedVal').textContent = formatSpeedLabel(CFG.speed);
+  CFG.speed = parseInt(v);
+  document.getElementById('speedVal').textContent = (v / 1000).toFixed(1) + 's';
   scheduleSim();
 }
 
@@ -2112,7 +2518,7 @@ function updateBeta(v) {
 }
 
 function updateUI() {
-  computeMetrics();
+  renderOrgList();
 }
 
 // ============================================================
@@ -2120,9 +2526,11 @@ function updateUI() {
 // ============================================================
 
 initLegendToggles();
+syncOrgChurnToggleUi();
+syncAgentChurnToggleUi();
 initSim();
-logEvent('system', 'IOTBSM Agentic Trust Simulation initialized');
-logEvent('system', 'Per-request claim model active — agents act across org boundaries');
+logEvent('system', 'Agentic AI trust network — IEOTBSM Figure 5 cycle, §4.8 IA/SM');
+logEvent('system', 'Dynamic orgs + share/breach pulses (toggle layers in legend)');
 </script>
 </body>
 </html>
