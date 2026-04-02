@@ -25,9 +25,11 @@ Then open `http://localhost:8080/iotbsm_simulation.html`.
 
 - **Organizations** as colored rings; **AI agents** (dots) and **BS-AI** boundary spanners (diamonds).
 - **Intra-organizational** trust as faint green edges; **inter-organizational** trust as cyan links between org centers (with numeric labels); **BS–BS** links in orange.
+- **Trust on edges** is shown as **`a / b`**: directed trust from the **lower-id** node to the **higher-id** node, then from the **higher-id** node to the **lower-id** node (same rule for org centers, intra-org agent pairs, and BS–BS pairs).
 - **Animated pulses** (budget-limited per cycle): **white** = successful share hop, **amber** = denied cross-org hop (sampled), **red** = breach path from pedigree audit, **violet** = a **poison-pill** fact crossing a hop (same “Denied / Breach” legend layer). **Legend** rows toggle layers; hint text matches pulse colors.
 - **Zoom / pan**: scroll wheel, pinch (trackpad `ctrlKey` wheel), **+/−/⊙** HUD, **Alt+drag** or **middle-drag** to pan.
-- **Tooltips** on hover (agent/org). **Event log** for elections, org/agent churn (joins/leaves), breaches, TPM changes, etc.
+- **Tooltips** on hover for canvas entities (agents/orgs). **System Metrics** cards: hover a card for IA, SM, Cycle, and Network definitions (Cycle and Network tooltips include live counts).
+- **Organizations** and **Event log** share the lower sidebar; drag the **resize bar** between them to change vertical space. The **event log** lists elections, org/agent churn (joins/leaves), breaches, TPM changes, etc.
 - **Web Audio** cues (header **🔊** / **🔈** to mute).
 
 ## Simulation cycle (Figure 5 style, high level)

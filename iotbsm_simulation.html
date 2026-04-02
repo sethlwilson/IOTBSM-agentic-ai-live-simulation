@@ -143,6 +143,66 @@
     min-height: 0;
   }
 
+  .panel-split-wrap {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .org-panel-resize {
+    flex: 0 0 auto;
+    height: 160px;
+    min-height: 80px;
+    display: flex;
+    flex-direction: column;
+    border-bottom: none;
+    padding-bottom: 10px;
+    overflow: hidden;
+  }
+
+  .org-panel-resize .org-list {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+  }
+
+  .panel-splitter {
+    flex: 0 0 6px;
+    margin: 0 8px;
+    border-radius: 2px;
+    background: rgba(30, 45, 66, 0.6);
+    cursor: ns-resize;
+    user-select: none;
+    touch-action: none;
+  }
+
+  .panel-splitter:hover,
+  .panel-splitter:focus-visible {
+    background: rgba(0, 212, 255, 0.25);
+  }
+
+  .panel-splitter:focus-visible {
+    outline: 1px solid var(--accent);
+    outline-offset: 1px;
+  }
+
+  .event-log-panel {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    padding-top: 10px;
+  }
+
+  .event-log-panel .log-scroll {
+    flex: 1;
+    min-height: 0;
+    max-height: none;
+  }
+
   .section-label {
     font-family: var(--mono);
     font-size: 10px;
@@ -186,13 +246,6 @@
   .metric-value.sm { color: var(--danger); }
   .metric-value.cycle { color: var(--accent); }
   .metric-value.net { color: var(--accent2); }
-
-  .metric-sub {
-    font-family: var(--mono);
-    font-size: 9px;
-    color: var(--text-dim);
-    margin-top: 2px;
-  }
 
   /* Mini sparkline bars */
   .sparkline {
@@ -465,8 +518,8 @@
     <span id="statusLabel" style="font-family:var(--mono);font-size:10px;color:var(--text-dim);margin-right:8px;">RUNNING</span>
     <button class="btn" id="toggleBtn" onclick="toggleSim()">PAUSE</button>
     <button class="btn success" onclick="stepSim()">STEP</button>
-    <button class="btn active" type="button" id="orgChurnToggle" onclick="toggleOrgChurnPaused()" aria-pressed="true" title="Automatic org join/leave each cycle (click to pause)">ORG CHURN ON</button>
-    <button class="btn active" type="button" id="agentChurnToggle" onclick="toggleAgentChurnPaused()" aria-pressed="true" title="Agents join or leave orgs over time (click to pause)">AGENT CHURN ON</button>
+    <button class="btn active" type="button" id="orgChurnToggle" onclick="toggleOrgChurnPaused()" aria-pressed="true" title="Automatic org join/leave each cycle (click to pause)">ORG CHURN</button>
+    <button class="btn active" type="button" id="agentChurnToggle" onclick="toggleAgentChurnPaused()" aria-pressed="true" title="Agents join or leave orgs over time (click to pause)">AGENT CHURN</button>
     <button class="btn" onclick="addOrg()">+ ORG</button>
     <button class="btn danger" onclick="removeOrg()">− ORG</button>
     <button class="btn danger" type="button" id="poisonInjectBtn" onclick="injectPoisonPill()" title="Seed a poison-pill fact at a random AI agent; each share erodes trust across the network">☠ POISON</button>
@@ -495,8 +548,6 @@
         <div class="legend-item legend-layer" data-layer="agentTrust" role="button" tabindex="0" aria-pressed="true" title="Show or hide intra-org trust links (click)"><div class="legend-line" style="background:rgba(127,255,107,0.3)"></div>Agent Trust</div>
         <div class="legend-item legend-layer" data-layer="breach" role="button" tabindex="0" aria-pressed="true" title="Show or hide denied (amber) and breach (red) paths (click)"><div class="legend-line" style="background:linear-gradient(90deg,#ff9a3c,#ff3b5c)"></div>Denied / Breach</div>
         <div class="legend-item legend-layer" data-layer="claim" role="button" tabindex="0" aria-pressed="true" title="Show or hide successful share paths (click)"><div class="legend-dot" style="background:#f0f4ff;border-radius:0;border:1px solid var(--border)"></div>Share path</div>
-        <div class="legend-item" style="flex-basis:100%;margin-top:6px;color:var(--text-dim);line-height:1.35">Trust on edges is shown as <span style="color:var(--text);font-family:Space Mono,monospace">a / b</span>: directed trust from the lower-id node to the higher-id node, then from the higher-id node to the lower-id node (same rule for org centers, intra-org agents, and BS-AI pairs).</div>
-        <div class="legend-item" style="flex-basis:100%;margin-top:4px;color:var(--text-dim)">Pulses: white = fact shared · amber = denied hop · red = breach path · violet = poison hop (Denied/Breach layer) · Scroll/pinch zoom · Drag to pan when zoomed, or Alt+drag / middle mouse</div>
       </div>
     </div>
     <div class="canvas-zoom-hud">
@@ -514,27 +565,23 @@
     <div class="panel-section">
       <div class="section-label">System Metrics</div>
       <div class="metrics-grid">
-        <div class="metric-card">
+        <div class="metric-card" id="iaCard" title="Rolling 15-cycle window of pedigree audit counts (paper §4.8). IA = round((Σ intended / Σ shared-class) × 100%) when Σ shared-class &gt; 0; else 0%.">
           <div class="metric-label">Info Availability</div>
           <div class="metric-value ia" id="iaVal">—</div>
-          <div class="metric-sub" id="iaSub">rolling 15-cycle sum of audit-class receipts (§4.8)</div>
           <div class="sparkline" id="iaSparkline"></div>
         </div>
-        <div class="metric-card">
+        <div class="metric-card" id="smCard" title="Same rolling window as Info Availability. SM = round((Σ unintended / Σ shared-class) × 100%).">
           <div class="metric-label">Security Measure</div>
           <div class="metric-value sm" id="smVal">—</div>
-          <div class="metric-sub" id="smSub">same window as IA; unintended ÷ shared-class</div>
           <div class="sparkline" id="smSparkline"></div>
         </div>
-        <div class="metric-card">
+        <div class="metric-card" id="cycleCard" title="Simulation cycle index. Facts generated and shared-class audit count update each tick.">
           <div class="metric-label">Cycle</div>
           <div class="metric-value cycle" id="cycleVal">0</div>
-          <div class="metric-sub" id="cycleSub">facts gen this cycle</div>
         </div>
-        <div class="metric-card">
+        <div class="metric-card" id="netCard" title="Organization count, non–BS-AI agents, and BS-AI boundary spanners.">
           <div class="metric-label">Network</div>
           <div class="metric-value net" id="netVal">0</div>
-          <div class="metric-sub" id="netSub">orgs · agents · BS</div>
         </div>
       </div>
     </div>
@@ -574,16 +621,16 @@
       </div>
     </div>
 
-    <!-- Org list -->
-    <div class="panel-section" style="max-height:160px;overflow-y:auto;">
-      <div class="section-label">Organizations</div>
-      <div class="org-list" id="orgList"></div>
-    </div>
-
-    <!-- Event log -->
-    <div class="panel-section grow">
-      <div class="section-label">Event Log</div>
-      <div class="log-scroll" id="logScroll"></div>
+    <div class="panel-split-wrap" id="panelSplitWrap">
+      <div class="panel-section org-panel-resize" id="orgPanelResize">
+        <div class="section-label">Organizations</div>
+        <div class="org-list" id="orgList"></div>
+      </div>
+      <div class="panel-splitter" id="panelSplitter" role="separator" aria-orientation="horizontal" aria-label="Resize organizations and event log" tabindex="0"></div>
+      <div class="panel-section event-log-panel">
+        <div class="section-label">Event Log</div>
+        <div class="log-scroll" id="logScroll"></div>
+      </div>
     </div>
   </div>
 </div>
@@ -845,6 +892,7 @@ function initSim() {
   initAgentTrust();
   electBoundarySpanners();
 
+  computeMetrics();
   scheduleSim();
   renderLoop();
 }
@@ -1651,11 +1699,13 @@ function computeMetrics() {
   document.getElementById('iaVal').textContent = ia + '%';
   document.getElementById('smVal').textContent = sm + '%';
   document.getElementById('cycleVal').textContent = state.cycle;
-  document.getElementById('cycleSub').textContent =
-    `${state.cycleFactsGenerated} facts gen · ${denom} shared-class (this cycle)`;
   document.getElementById('netVal').textContent = state.orgs.length;
-  document.getElementById('netSub').textContent =
-    `${state.orgs.length} orgs · ${state.agents.filter(a=>!a.isBoundarySpanner).length} agents · ${state.agents.filter(a=>a.isBoundarySpanner).length} BS`;
+  const cycleDetail = `${state.cycleFactsGenerated} facts gen · ${denom} shared-class (this cycle)`;
+  const netDetail = `${state.orgs.length} orgs · ${state.agents.filter(a => !a.isBoundarySpanner).length} agents · ${state.agents.filter(a => a.isBoundarySpanner).length} BS`;
+  document.getElementById('cycleCard').title =
+    `Simulation cycle (tick). The main number is the cycle index. Each cycle: facts generated and pedigree shared-class receipts (this cycle only). Current: ${cycleDetail}.`;
+  document.getElementById('netCard').title =
+    `Network size: organizations, non–BS-AI agents, and BS-AI liaisons. Current: ${netDetail}.`;
 
   renderSparkline('iaSparkline', state.iaHistory, '#7fff6b', 100);
   renderSparkline('smSparkline', state.smHistory, '#ff3b5c', 100);
@@ -2433,7 +2483,7 @@ function scheduleSim() {
 function syncOrgChurnToggleUi() {
   const btn = document.getElementById('orgChurnToggle');
   if (!btn) return;
-  btn.textContent = orgChurnPaused ? 'ORG CHURN OFF' : 'ORG CHURN ON';
+  btn.textContent = orgChurnPaused ? 'ORG CHURN' : 'ORG CHURN';
   btn.classList.toggle('active', !orgChurnPaused);
   btn.setAttribute('aria-pressed', orgChurnPaused ? 'false' : 'true');
   btn.title = orgChurnPaused
@@ -2450,7 +2500,7 @@ function toggleOrgChurnPaused() {
 function syncAgentChurnToggleUi() {
   const btn = document.getElementById('agentChurnToggle');
   if (!btn) return;
-  btn.textContent = agentChurnPaused ? 'AGENT CHURN OFF' : 'AGENT CHURN ON';
+  btn.textContent = agentChurnPaused ? 'AGENT CHURN' : 'AGENT CHURN';
   btn.classList.toggle('active', !agentChurnPaused);
   btn.setAttribute('aria-pressed', agentChurnPaused ? 'false' : 'true');
   btn.title = agentChurnPaused
@@ -2528,6 +2578,66 @@ function updateUI() {
 initLegendToggles();
 syncOrgChurnToggleUi();
 syncAgentChurnToggleUi();
+
+(function initRightPanelSplit() {
+  const wrap = document.getElementById('panelSplitWrap');
+  const orgPanel = document.getElementById('orgPanelResize');
+  const splitter = document.getElementById('panelSplitter');
+  if (!wrap || !orgPanel || !splitter) return;
+
+  const STORAGE_KEY = 'iotbsm_orgPanelHeight';
+  const MIN_ORG = 80;
+  const MIN_LOG = 100;
+  const SPLITTER_H = 6;
+
+  function clampHeight(px) {
+    const avail = wrap.getBoundingClientRect().height - SPLITTER_H;
+    const maxOrg = Math.max(MIN_ORG, avail - MIN_LOG);
+    return Math.min(maxOrg, Math.max(MIN_ORG, px));
+  }
+
+  function persistHeight() {
+    localStorage.setItem(STORAGE_KEY, String(Math.round(orgPanel.getBoundingClientRect().height)));
+  }
+
+  function applyDelta(dy) {
+    const cur = orgPanel.getBoundingClientRect().height;
+    orgPanel.style.height = clampHeight(cur + dy) + 'px';
+    persistHeight();
+  }
+
+  let startY;
+  let startH;
+  splitter.addEventListener('mousedown', (e) => {
+    e.preventDefault();
+    startY = e.clientY;
+    startH = orgPanel.getBoundingClientRect().height;
+    document.body.style.cursor = 'ns-resize';
+    document.body.style.userSelect = 'none';
+
+    function onMove(e2) {
+      orgPanel.style.height = clampHeight(startH + (e2.clientY - startY)) + 'px';
+    }
+    function onUp() {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      persistHeight();
+    }
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  });
+
+  splitter.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+      e.preventDefault();
+      const dy = e.key === 'ArrowUp' ? -12 : 12;
+      applyDelta(dy);
+    }
+  });
+})();
+
 initSim();
 logEvent('system', 'Agentic AI trust network — IEOTBSM Figure 5 cycle, §4.8 IA/SM');
 logEvent('system', 'Dynamic orgs + share/breach pulses (toggle layers in legend)');
