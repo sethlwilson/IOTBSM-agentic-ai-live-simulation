@@ -247,6 +247,47 @@
   .metric-value.cycle { color: var(--accent); }
   .metric-value.net { color: var(--accent2); }
 
+  /* Inter-org trust matrix */
+  .trust-matrix-wrap {
+    overflow-x: auto;
+    padding-bottom: 2px;
+  }
+  .trust-matrix {
+    display: grid;
+    gap: 2px;
+  }
+  .tm-corner, .tm-header-cell {
+    width: 22px; height: 22px;
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--mono); font-size: 7px;
+    color: var(--text-dim);
+    flex-shrink: 0;
+  }
+  .tm-row-header {
+    width: 22px; height: 22px;
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--mono); font-size: 7px;
+    color: var(--text-dim);
+    flex-shrink: 0;
+  }
+  .tm-cell {
+    width: 22px; height: 22px;
+    border-radius: 2px;
+    position: relative;
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--mono); font-size: 7px;
+    cursor: default;
+    flex-shrink: 0;
+    user-select: none;
+  }
+  .tm-cell.tm-diag {
+    background: var(--surface2);
+    color: var(--border);
+  }
+  .tm-delta-up   { color: var(--accent3); }
+  .tm-delta-down { color: var(--danger);  }
+  .tm-delta-flat { color: var(--border);  }
+
   /* Mini sparkline bars */
   .sparkline {
     display: flex; align-items: flex-end; gap: 1px;
@@ -396,6 +437,131 @@
   #tooltip .tt-key { color: var(--text-dim); }
   #tooltip .tt-val { color: var(--text-bright); }
 
+  /* Breach scrutiny modal */
+  .breach-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(8, 12, 20, 0.72);
+    z-index: 2000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+
+  .breach-modal-overlay[hidden] {
+    display: none !important;
+  }
+
+  .breach-modal-card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    max-width: 520px;
+    width: 100%;
+    max-height: min(85vh, 640px);
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+  }
+
+  .breach-modal-title {
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--danger);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    margin: 0;
+    padding: 16px 18px 10px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .breach-modal-text {
+    font-family: var(--mono);
+    font-size: 11px;
+    line-height: 1.55;
+    color: var(--text-dim);
+    margin: 0 0 10px;
+  }
+
+  .breach-modal-text strong {
+    color: var(--text-bright);
+  }
+
+  .breach-modal-hint {
+    margin-bottom: 16px;
+  }
+
+  #breachModalPrompt {
+    padding: 14px 18px 18px;
+  }
+
+  .breach-modal-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+  }
+
+  .breach-modal-details {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    flex: 1;
+    padding: 0 18px 18px;
+  }
+
+  .breach-modal-details-scroll {
+    overflow-y: auto;
+    flex: 1;
+    min-height: 120px;
+    max-height: 48vh;
+    font-family: var(--mono);
+    font-size: 10px;
+    line-height: 1.55;
+    color: var(--text);
+    margin-bottom: 14px;
+    padding-right: 4px;
+  }
+
+  .breach-modal-actions-foot {
+    flex-shrink: 0;
+    margin-top: auto;
+  }
+
+  .breach-incident {
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 10px 12px;
+    margin-bottom: 10px;
+    background: var(--surface);
+  }
+
+  .breach-incident-title {
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: 8px;
+  }
+
+  .breach-detail-block {
+    margin-bottom: 6px;
+    color: var(--text-dim);
+  }
+
+  .breach-detail-block:last-child {
+    margin-bottom: 0;
+  }
+
+  .breach-dt {
+    color: var(--text-bright);
+    font-weight: 700;
+    margin-right: 6px;
+  }
+
   /* Request pulse animation */
   .request-pulse {
     animation: pulse-ring 0.6s ease-out forwards;
@@ -520,6 +686,7 @@
     <button class="btn success" onclick="stepSim()">STEP</button>
     <button class="btn active" type="button" id="orgChurnToggle" onclick="toggleOrgChurnPaused()" aria-pressed="true" title="Automatic org join/leave each cycle (click to pause)">ORG CHURN</button>
     <button class="btn active" type="button" id="agentChurnToggle" onclick="toggleAgentChurnPaused()" aria-pressed="true" title="Agents join or leave orgs over time (click to pause)">AGENT CHURN</button>
+    <button class="btn active" type="button" id="breachPromptToggle" onclick="toggleBreachPromptEnabled()" aria-pressed="true" title="Pause and show modal when pedigree audit finds unintended receipt (click to turn off)">BREACH PROMPT</button>
     <button class="btn" onclick="addOrg()">+ ORG</button>
     <button class="btn danger" onclick="removeOrg()">− ORG</button>
     <button class="btn danger" type="button" id="poisonInjectBtn" onclick="injectPoisonPill()" title="Seed a poison-pill fact at a random AI agent; each share erodes trust across the network">☠ POISON</button>
@@ -621,6 +788,12 @@
       </div>
     </div>
 
+    <!-- Inter-Org Trust Matrix -->
+    <div class="panel-section" id="trustMatrixSection">
+      <div class="section-label">Inter-Org Trust</div>
+      <div id="trustMatrix" class="trust-matrix-wrap"></div>
+    </div>
+
     <div class="panel-split-wrap" id="panelSplitWrap">
       <div class="panel-section org-panel-resize" id="orgPanelResize">
         <div class="section-label">Organizations</div>
@@ -636,6 +809,27 @@
 </div>
 
 <div id="tooltip"></div>
+
+<div id="breachReviewModal" class="breach-modal-overlay" hidden aria-hidden="true">
+  <div class="breach-modal-card" role="dialog" aria-modal="true" aria-labelledby="breachModalTitle">
+    <h2 id="breachModalTitle" class="breach-modal-title">Unintended receipt / breach</h2>
+    <div id="breachModalPrompt">
+      <p class="breach-modal-text">Cycle <span id="breachModalCycleNum">0</span>: <strong id="breachModalCount">0</strong> unintended receiver(s). Trust policy updates (TPM) were applied along each audited path.</p>
+      <p class="breach-modal-text breach-modal-hint">Resume the simulation or open details for facts, pedigree paths, and agents (including BS-AI).</p>
+      <div class="breach-modal-actions">
+        <button type="button" class="btn success" id="breachResumeBtn" onclick="resumeAfterBreachReview()">Resume simulation</button>
+        <button type="button" class="btn" id="breachDetailsBtn" onclick="showBreachReviewDetailsView()">View details</button>
+      </div>
+    </div>
+    <div id="breachModalDetails" class="breach-modal-details" hidden>
+      <div id="breachModalDetailsScroll" class="breach-modal-details-scroll"></div>
+      <div class="breach-modal-actions breach-modal-actions-foot">
+        <button type="button" class="btn" id="breachBackBtn" onclick="breachDetailsBack()">Back</button>
+        <button type="button" class="btn success" onclick="resumeAfterBreachReview()">Resume simulation</button>
+      </div>
+    </div>
+  </div>
+</div>
 
 <script>
 // ============================================================
@@ -672,6 +866,13 @@ let CFG = {
   poisonRippleIntra: 0.028,   // subtract on every directed intra-org edge in affected org(s)
   poisonInterOrgDecay: 0.045, // subtract from both directed org–org τ on BS-mediated poison hops
   poisonGlobalRipple: 0.011,  // subtract from every org-pair τ (network-wide stress per poison hop)
+  /** Pause and show scrutiny modal after pedigree audit finds unintended receipt(s). Set false for unattended runs. */
+  pauseOnUnintendedAudit: true,
+  /** Private org fact vocabulary: each org owns a contiguous slice of the global fact space.
+   *  Agents generate from their org's slice; they require facts from other orgs' slices.
+   *  Set false to restore the original shared 20-value pool. */
+  privateOrgVocab: true,
+  vocabSizePerOrg: 8,
 };
 
 /** When true, stochastic addOrg/removeOrg each cycle is skipped (+ ORG / − ORG still work). */
@@ -695,7 +896,14 @@ let state = {
   cycleUnintended: 0,
   cycleTotalShared: 0,
   cycleFactsGenerated: 0,
+  breachReviewPending: false,
 };
+
+/** Snapshot ids for breach scrutiny modal (resolved to names when rendering). */
+let lastBreachIncidents = [];
+
+/** key "orgId_i-orgId_j" → trust value from previous render, for delta arrows */
+const lastTrustMatrixVals = new Map();
 
 // ---- Canvas ----
 const canvas = document.getElementById('networkCanvas');
@@ -878,11 +1086,13 @@ function initSim() {
     cycleTotalShared: 0,
     cycleFactsGenerated: 0,
     metricRollWindow: [],
+    breachReviewPending: false,
   };
 
   orgIdCounter = 0; agentIdCounter = 0;
   factIdCounter = 0;
   clearTrustFlashMaps();
+  lastTrustMatrixVals.clear();
 
   // Create 4 orgs
   for (let i = 0; i < 4; i++) addOrg(false);
@@ -893,6 +1103,7 @@ function initSim() {
   electBoundarySpanners();
 
   computeMetrics();
+  hideBreachReviewModalDom();
   scheduleSim();
   renderLoop();
 }
@@ -915,7 +1126,7 @@ function addOrg(doLayout = true) {
   const count = 3 + Math.floor(Math.random() * 4);
   for (let i = 0; i < count; i++) {
     const agent = createAgent(org.id);
-    agent.factRequired = Math.floor(Math.random() * 20);
+    agent.factRequired = randomFactOutsideOrg(org);
     state.agents.push(agent);
     org.agents.push(agent.id);
   }
@@ -991,7 +1202,7 @@ function addAgentToRandomOrg() {
   if (!candidates.length) return;
   const org = candidates[Math.floor(Math.random() * candidates.length)];
   const agent = createAgent(org.id);
-  agent.factRequired = Math.floor(Math.random() * 20);
+  agent.factRequired = randomFactOutsideOrg(org);
   state.agents.push(agent);
   org.agents.push(agent.id);
   initAgentTrustForOrg(org);
@@ -1033,9 +1244,12 @@ function injectPoisonPill() {
   const agent = candidates[Math.floor(Math.random() * candidates.length)];
   const org = getOrg(agent.orgId);
   const fw = FACT_WAREHOUSE();
+  const poisonValue = CFG.privateOrgVocab && org
+    ? orgVocab(org)[Math.floor(Math.random() * CFG.vocabSizePerOrg)]
+    : fw[Math.floor(Math.random() * fw.length)];
   const fact = {
     id: factIdCounter++,
-    value: fw[Math.floor(Math.random() * fw.length)],
+    value: poisonValue,
     initiator: agent.id,
     cycle: state.cycle + 1,
     pedigree: [agent.id],
@@ -1173,6 +1387,31 @@ function electBoundarySpanners() {
 // ============================================================
 
 const FACT_WAREHOUSE = () => Array.from({ length: 20 }, (_, i) => i);
+
+/** Returns the array of fact values owned by org (its private vocabulary slice). */
+function orgVocab(org) {
+  const sz = CFG.vocabSizePerOrg;
+  return Array.from({ length: sz }, (_, i) => org.id * sz + i);
+}
+
+/** Returns the org that "owns" a given fact value, or null if none match (e.g. legacy mode). */
+function factOwnerOrg(value) {
+  const sz = CFG.vocabSizePerOrg;
+  return state.orgs.find(o => value >= o.id * sz && value < (o.id + 1) * sz) || null;
+}
+
+/**
+ * Picks a random fact value that belongs to some other org's vocabulary.
+ * Falls back to the agent's own vocab when no other orgs exist yet.
+ * When CFG.privateOrgVocab is false, returns a random value from 0–19 (legacy behavior).
+ */
+function randomFactOutsideOrg(org) {
+  if (!CFG.privateOrgVocab) return Math.floor(Math.random() * 20);
+  const outside = [];
+  state.orgs.forEach(o => { if (o.id !== org.id) orgVocab(o).forEach(v => outside.push(v)); });
+  if (!outside.length) return orgVocab(org)[Math.floor(Math.random() * CFG.vocabSizePerOrg)];
+  return outside[Math.floor(Math.random() * outside.length)];
+}
 
 /** Throttled graph pulses: intra-org grants sampled; cross-org & breaches prioritized. */
 function maybePulseFactPath(path, outcome, opts) {
@@ -1422,6 +1661,7 @@ function pathTrustEdgesOk(path) {
 function auditPedigreesAndTPM() {
   let intended = 0;
   let unintended = 0;
+  const unintendedIncidents = [];
 
   for (const fact of state.facts) {
     if (fact.expired || fact.cycle !== state.cycle) continue;
@@ -1444,6 +1684,15 @@ function auditPedigreesAndTPM() {
       if (edgesOk) intended++;
       else {
         unintended++;
+        unintendedIncidents.push({
+          factId: fact.id,
+          factValue: fact.value,
+          factCycle: fact.cycle,
+          factPoison: !!fact.poison,
+          initiatorId: fact.initiator,
+          recipientId: rid,
+          pathIds: path.slice(),
+        });
         const claim = { path };
         const result = { path, breach: true };
         applyTPM(claim, result, init, null, null, null, 'pedigree');
@@ -1461,6 +1710,7 @@ function auditPedigreesAndTPM() {
   if (unintended > 0) {
     logEvent('breach', `Cycle ${state.cycle}: ${unintended} unintended receiver(s); TPM applied`);
   }
+  return unintendedIncidents;
 }
 
 // ============================================================
@@ -1493,12 +1743,15 @@ function simStep() {
   let genCount = 0;
   state.agents.forEach(agent => {
     if (agent.factRequired === undefined || agent.factRequired === null) {
-      agent.factRequired = Math.floor(Math.random() * 20);
+      agent.factRequired = randomFactOutsideOrg(getOrg(agent.orgId));
     }
     if (agent.isBoundarySpanner) return;
+    const agentOrg = getOrg(agent.orgId);
     const fact = {
       id: factIdCounter++,
-      value: factWarehouse[Math.floor(Math.random() * factWarehouse.length)],
+      value: CFG.privateOrgVocab
+        ? orgVocab(agentOrg)[Math.floor(Math.random() * CFG.vocabSizePerOrg)]
+        : factWarehouse[Math.floor(Math.random() * factWarehouse.length)],
       initiator: agent.id,
       cycle: state.cycle,
       pedigree: [agent.id],
@@ -1551,7 +1804,7 @@ function simStep() {
 
   state.cycleSatisfiedAgents = state.agents.filter(a => a.satisfied).length;
 
-  auditPedigreesAndTPM();
+  const breachIncidents = auditPedigreesAndTPM();
 
   updateInterOrgTrust();
 
@@ -1577,6 +1830,10 @@ function simStep() {
 
   if (CFG.poisonRandomChance > 0 && state.cycle > 15 && Math.random() < CFG.poisonRandomChance) {
     injectPoisonPill();
+  }
+
+  if (breachIncidents.length > 0 && CFG.pauseOnUnintendedAudit) {
+    offerBreachReview(breachIncidents);
   }
 }
 
@@ -1670,7 +1927,7 @@ function updateInterOrgTrust() {
 // METRICS
 // ============================================================
 
-const METRIC_ROLL_CYCLES = 15;
+const METRIC_ROLL_CYCLES = 5;
 
 function computeMetrics() {
   const denom = state.cycleTotalShared;
@@ -1710,6 +1967,7 @@ function computeMetrics() {
   renderSparkline('iaSparkline', state.iaHistory, '#7fff6b', 100);
   renderSparkline('smSparkline', state.smHistory, '#ff3b5c', 100);
   renderOrgList();
+  renderTrustMatrix();
 }
 
 /** @param {number} [yMax] fixed scale max (e.g. 100 for %); default scales to data max */
@@ -1746,6 +2004,95 @@ function renderOrgList() {
     `;
     el.appendChild(div);
   });
+}
+
+function renderTrustMatrix() {
+  const wrap = document.getElementById('trustMatrix');
+  if (!wrap) return;
+  const orgs = state.orgs;
+  if (!orgs || orgs.length < 2) {
+    wrap.innerHTML = '<span style="font-family:var(--mono);font-size:9px;color:var(--text-dim)">—</span>';
+    return;
+  }
+  const N = orgs.length;
+
+  // Color ramp: surface #0e1520 → accent #00d4ff, parameterized by trust 0→1
+  function trustColor(t) {
+    if (t == null) return 'var(--surface2)';
+    const r = Math.round(14 + t * (0 - 14));
+    const g = Math.round(21 + t * (212 - 21));
+    const b = Math.round(32 + t * (255 - 32));
+    return `rgb(${r},${g},${b})`;
+  }
+
+  const grid = document.createElement('div');
+  grid.className = 'trust-matrix';
+  grid.style.gridTemplateColumns = `repeat(${N + 1}, 22px)`;
+
+  // Corner
+  const corner = document.createElement('div');
+  corner.className = 'tm-corner';
+  grid.appendChild(corner);
+
+  // Column headers (the "to" org)
+  orgs.forEach(org => {
+    const cell = document.createElement('div');
+    cell.className = 'tm-header-cell';
+    cell.title = `Column: ${org.name} (trusted party)`;
+    cell.innerHTML = `<span style="color:${org.color};font-weight:700">${org.name.replace('ORG-', '')}</span>`;
+    grid.appendChild(cell);
+  });
+
+  const newVals = new Map();
+
+  // Data rows
+  orgs.forEach((fromOrg, i) => {
+    // Row header (the "from" org)
+    const rowHdr = document.createElement('div');
+    rowHdr.className = 'tm-row-header';
+    rowHdr.title = `Row: ${fromOrg.name} (trust-holder)`;
+    rowHdr.innerHTML = `<span style="color:${fromOrg.color};font-weight:700">${fromOrg.name.replace('ORG-', '')}</span>`;
+    grid.appendChild(rowHdr);
+
+    orgs.forEach((toOrg, j) => {
+      const cell = document.createElement('div');
+      cell.className = 'tm-cell';
+      const key = `${fromOrg.id}-${toOrg.id}`;
+
+      if (i === j) {
+        cell.classList.add('tm-diag');
+        cell.textContent = '—';
+        cell.title = `${fromOrg.name} (self)`;
+      } else {
+        const t = fromOrg.trustIn[toOrg.id]?.value ?? null;
+        const prev = lastTrustMatrixVals.get(key);
+        const delta = (t != null && prev != null) ? t - prev : null;
+
+        cell.style.background = trustColor(t ?? 0);
+        newVals.set(key, t);
+
+        let deltaClass = 'tm-delta-flat';
+        let deltaGlyph = '·';
+        if (delta != null) {
+          if (delta > 0.005) { deltaClass = 'tm-delta-up'; deltaGlyph = '▲'; }
+          else if (delta < -0.005) { deltaClass = 'tm-delta-down'; deltaGlyph = '▼'; }
+        }
+        const deltaStr = delta != null
+          ? ` (Δ ${delta >= 0 ? '+' : ''}${delta.toFixed(3)})`
+          : '';
+        cell.title = `${fromOrg.name} → ${toOrg.name}: ${t != null ? t.toFixed(3) : '?'}${deltaStr}`;
+        cell.innerHTML = `<span class="${deltaClass}">${deltaGlyph}</span>`;
+      }
+
+      grid.appendChild(cell);
+    });
+  });
+
+  // Update tracker
+  newVals.forEach((v, k) => lastTrustMatrixVals.set(k, v));
+
+  wrap.innerHTML = '';
+  wrap.appendChild(grid);
 }
 
 // ============================================================
@@ -1962,7 +2309,10 @@ function renderLoop() {
     ctx.fillStyle = org.color;
     ctx.font = 'bold 11px Space Mono, monospace';
     ctx.textAlign = 'center';
-    ctx.fillText(org.name, org.x, org.y + r + 14);
+    const orgLabel = CFG.privateOrgVocab
+      ? `${org.name}  ${org.id * CFG.vocabSizePerOrg}–${(org.id + 1) * CFG.vocabSizePerOrg - 1}`
+      : org.name;
+    ctx.fillText(orgLabel, org.x, org.y + r + 14);
 
     // Draw agents
     state.agents.filter(a => a.orgId === org.id).forEach(agent => {
@@ -2224,6 +2574,7 @@ canvas.addEventListener('mousemove', (e) => {
         <div class="tt-row"><span class="tt-key">avg trust</span><span class="tt-val">${avgTrust.toFixed(3)}</span></div>
         <div class="tt-row"><span class="tt-key">satisfied</span><span class="tt-val" style="color:${agent.satisfied?'var(--accent3)':'var(--danger)'}">${agent.satisfied ? 'YES' : 'NO'}</span></div>
         <div class="tt-row"><span class="tt-key">fact req</span><span class="tt-val">${agent.factRequired}</span></div>
+        ${CFG.privateOrgVocab ? (() => { const owner = factOwnerOrg(agent.factRequired); return `<div class="tt-row"><span class="tt-key">fact owner</span><span class="tt-val">${owner ? owner.name : '?'}</span></div>`; })() : ''}
       `;
       return;
     }
@@ -2243,6 +2594,7 @@ canvas.addEventListener('mousemove', (e) => {
         <div class="tt-row"><span class="tt-key">BS count</span><span class="tt-val">${state.agents.filter(a=>a.orgId===org.id&&a.isBoundarySpanner).length}</span></div>
         <div class="tt-row"><span class="tt-key">avg I/O trust</span><span class="tt-val">${avgTrust.toFixed(3)}</span></div>
         <div class="tt-row"><span class="tt-key">joined</span><span class="tt-val">cycle ${org.joined}</span></div>
+        ${CFG.privateOrgVocab ? `<div class="tt-row"><span class="tt-key">vocab</span><span class="tt-val">${org.id * CFG.vocabSizePerOrg}–${(org.id + 1) * CFG.vocabSizePerOrg - 1}</span></div>` : ''}
       `;
       return;
     }
@@ -2470,6 +2822,129 @@ function logEvent(type, msg) {
 }
 
 // ============================================================
+// BREACH SCRUTINY (unintended receipt / pedigree audit)
+// ============================================================
+
+function setRunningUi(running) {
+  const btn = document.getElementById('toggleBtn');
+  const lbl = document.getElementById('statusLabel');
+  const dot = document.getElementById('statusDot');
+  const header = document.querySelector('header');
+  if (btn) {
+    btn.textContent = running ? 'PAUSE' : 'RESUME';
+    btn.className = running ? 'btn' : 'btn active';
+  }
+  if (lbl) lbl.textContent = running ? 'RUNNING' : 'PAUSED';
+  if (header) header.className = running ? '' : 'paused';
+  if (dot) dot.style.background = running ? 'var(--accent3)' : 'var(--warn)';
+}
+
+function hideBreachReviewModalDom() {
+  const modal = document.getElementById('breachReviewModal');
+  if (modal) {
+    modal.hidden = true;
+    modal.setAttribute('aria-hidden', 'true');
+  }
+  const details = document.getElementById('breachModalDetails');
+  const prompt = document.getElementById('breachModalPrompt');
+  const scroll = document.getElementById('breachModalDetailsScroll');
+  if (scroll) scroll.innerHTML = '';
+  if (details) details.hidden = true;
+  if (prompt) prompt.hidden = false;
+}
+
+function formatBreachAgentLabel(agentId) {
+  const a = getAgent(agentId);
+  if (!a) return `missing#${agentId}`;
+  const org = getOrg(a.orgId);
+  const orgName = org ? org.name : '?';
+  const role = a.isBoundarySpanner ? 'BS-AI' : 'AI';
+  return `${a.name} (${orgName}, ${role})`;
+}
+
+function buildBreachDetailsHtml(incidents) {
+  let html = '';
+  incidents.forEach((inc, i) => {
+    const init = getAgent(inc.initiatorId);
+    const initOrg = init ? getOrg(init.orgId) : null;
+    const initLine = init
+      ? `${init.name} (${initOrg ? initOrg.name : '?'}${init.isBoundarySpanner ? ', BS-AI' : ', AI'})`
+      : `agent #${inc.initiatorId}`;
+    const recip = getAgent(inc.recipientId);
+    const recipOrg = recip ? getOrg(recip.orgId) : null;
+    const recipLine = recip
+      ? `${recip.name} (${recipOrg ? recipOrg.name : '?'}${recip.isBoundarySpanner ? ', BS-AI' : ', AI'})`
+      : `agent #${inc.recipientId}`;
+    const pathStr = inc.pathIds.map(formatBreachAgentLabel).join(' → ');
+    const poison = inc.factPoison ? ', poison-pill' : '';
+    html += `<section class="breach-incident" aria-label="Incident ${i + 1}">
+      <div class="breach-incident-title">Incident ${i + 1}</div>
+      <div class="breach-detail-block"><span class="breach-dt">Fact</span> id ${inc.factId}, value ${inc.factValue}, created cycle ${inc.factCycle}${poison}</div>
+      <div class="breach-detail-block"><span class="breach-dt">Initiator</span> ${initLine}</div>
+      <div class="breach-detail-block"><span class="breach-dt">Unintended receiver</span> ${recipLine}</div>
+      <div class="breach-detail-block"><span class="breach-dt">Pedigree path</span> ${pathStr}</div>
+    </section>`;
+  });
+  return html;
+}
+
+function offerBreachReview(incidents) {
+  lastBreachIncidents = incidents;
+  state.running = false;
+  state.breachReviewPending = true;
+  setRunningUi(false);
+  const modal = document.getElementById('breachReviewModal');
+  const details = document.getElementById('breachModalDetails');
+  const scroll = document.getElementById('breachModalDetailsScroll');
+  const cycleEl = document.getElementById('breachModalCycleNum');
+  const countEl = document.getElementById('breachModalCount');
+  if (cycleEl) cycleEl.textContent = String(state.cycle);
+  if (countEl) countEl.textContent = String(incidents.length);
+  if (scroll) scroll.innerHTML = '';
+  if (details) details.hidden = true;
+  const prompt = document.getElementById('breachModalPrompt');
+  if (prompt) prompt.hidden = false;
+  if (modal) {
+    modal.hidden = false;
+    modal.setAttribute('aria-hidden', 'false');
+  }
+  const resumeBtn = document.getElementById('breachResumeBtn');
+  if (resumeBtn) resumeBtn.focus();
+}
+
+function showBreachReviewDetailsView() {
+  const prompt = document.getElementById('breachModalPrompt');
+  const details = document.getElementById('breachModalDetails');
+  const scroll = document.getElementById('breachModalDetailsScroll');
+  if (prompt) prompt.hidden = true;
+  if (details) details.hidden = false;
+  if (scroll) scroll.innerHTML = buildBreachDetailsHtml(lastBreachIncidents);
+  const backBtn = document.getElementById('breachBackBtn');
+  if (backBtn) backBtn.focus();
+}
+
+function breachDetailsBack() {
+  const prompt = document.getElementById('breachModalPrompt');
+  const details = document.getElementById('breachModalDetails');
+  const scroll = document.getElementById('breachModalDetailsScroll');
+  if (prompt) prompt.hidden = false;
+  if (details) details.hidden = true;
+  if (scroll) scroll.innerHTML = '';
+  const resumeBtn = document.getElementById('breachResumeBtn');
+  if (resumeBtn) resumeBtn.focus();
+}
+
+function resumeAfterBreachReview() {
+  hideBreachReviewModalDom();
+  state.breachReviewPending = false;
+  state.running = true;
+  setRunningUi(true);
+  lastBreachIncidents = [];
+  const toggleBtn = document.getElementById('toggleBtn');
+  if (toggleBtn) toggleBtn.focus();
+}
+
+// ============================================================
 // SIM CONTROL
 // ============================================================
 
@@ -2514,23 +2989,44 @@ function toggleAgentChurnPaused() {
   logEvent('system', agentChurnPaused ? 'Automatic agent churn paused' : 'Automatic agent churn resumed');
 }
 
+function syncBreachPromptToggleUi() {
+  const btn = document.getElementById('breachPromptToggle');
+  if (!btn) return;
+  const on = CFG.pauseOnUnintendedAudit;
+  btn.textContent = 'BREACH PROMPT';
+  btn.classList.toggle('active', on);
+  btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+  btn.title = on
+    ? 'Pause and show scrutiny modal when pedigree audit finds unintended receipt (click to disable)'
+    : 'Unintended receipt / breach modal is off; audit and TPM still run (click to enable)';
+}
+
+function toggleBreachPromptEnabled() {
+  CFG.pauseOnUnintendedAudit = !CFG.pauseOnUnintendedAudit;
+  if (!CFG.pauseOnUnintendedAudit && state.breachReviewPending) {
+    resumeAfterBreachReview();
+  }
+  syncBreachPromptToggleUi();
+  logEvent('system', CFG.pauseOnUnintendedAudit
+    ? 'Unintended receipt / breach scrutiny modal enabled'
+    : 'Unintended receipt / breach scrutiny modal disabled');
+}
+
 function toggleSim() {
+  if (state.breachReviewPending) {
+    resumeAfterBreachReview();
+    return;
+  }
   state.running = !state.running;
-  const btn = document.getElementById('toggleBtn');
-  const lbl = document.getElementById('statusLabel');
-  const dot = document.getElementById('statusDot');
-  btn.textContent = state.running ? 'PAUSE' : 'RESUME';
-  btn.className = state.running ? 'btn' : 'btn active';
-  lbl.textContent = state.running ? 'RUNNING' : 'PAUSED';
-  document.querySelector('header').className = state.running ? '' : 'paused';
-  dot.style.background = state.running ? 'var(--accent3)' : 'var(--warn)';
+  setRunningUi(state.running);
 }
 
 function stepSim() {
   const wasRunning = state.running;
   state.running = false;
   simStep();
-  if (wasRunning) state.running = true;
+  if (wasRunning && !state.breachReviewPending) state.running = true;
+  setRunningUi(state.running);
 }
 
 function resetSim() {
@@ -2578,6 +3074,7 @@ function updateUI() {
 initLegendToggles();
 syncOrgChurnToggleUi();
 syncAgentChurnToggleUi();
+syncBreachPromptToggleUi();
 
 (function initRightPanelSplit() {
   const wrap = document.getElementById('panelSplitWrap');
